@@ -1,5 +1,7 @@
 # Instalacija i prvi koraci
 
+> 🪟 **Imaš Windows Server?** Prvo prođi [WINDOWS-SERVER.md](WINDOWS-SERVER.md): tamo se u Hyper-V-u napravi Ubuntu virtualka, a zatim se ovdje nastavlja od koraka 3.3.
+
 Ove upute vode od nule do aplikacije koja radi na tvom serveru s HTTPS-om, uz probu bez ijedne prave punionice.
 
 **Sadržaj**

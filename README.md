@@ -36,6 +36,8 @@ Svi navedeni proizvođači koriste standardni OCPP, pa sustav radi s njima bez p
 
 📘 **Detaljne upute korak po korak (server, HTTPS, prva proba, spajanje punionica, backup): [docs/INSTALACIJA.md](docs/INSTALACIJA.md)**
 
+🪟 **Windows Server 2025:** [docs/WINDOWS-SERVER.md](docs/WINDOWS-SERVER.md) (Ubuntu virtualka u Hyper-V-u)
+
 ### Server (produkcija, automatski HTTPS)
 
 ```bash
