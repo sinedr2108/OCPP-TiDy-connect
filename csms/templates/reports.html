@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block content %}
+<h1>Izvještaj potrošnje</h1>
+<div class="card"><form class="row" method="get"><label>Od<input type="date" name="date_from" value="{{ date_from }}"></label><label>Do<input type="date" name="date_to" value="{{ date_to }}"></label><button>Prikaži</button></form></div>
+<div class="card"><h2>Po korisniku</h2><table><tr><th>Korisnik</th><th class="n">Punjenja</th><th class="n">kWh</th><th class="n">EUR</th><th></th></tr>
+{% for uid,name,email,wh,eur,n in by_user %}<tr><td>{{ name or email or 'Nepoznat (kartica bez korisnika)' }}</td><td class="n">{{ n }}</td><td class="n">{{ '%.2f'|format((wh or 0)/1000) }}</td><td class="n">{{ '%.2f'|format(eur or 0) }}</td>
+<td>{% if uid %}<a href="/sessions?user_id={{ uid }}&date_from={{ date_from }}&date_to={{ date_to }}">detalji</a>{% endif %}</td></tr>{% else %}<tr><td colspan="5" class="muted">Nema podataka.</td></tr>{% endfor %}</table></div>
+<div class="card"><h2>Po RFID kartici</h2><table><tr><th>Kartica</th><th>Naziv</th><th class="n">Punjenja</th><th class="n">kWh</th><th class="n">EUR</th><th></th></tr>
+{% for cid,uid,label,tag,wh,eur,n in by_card %}<tr><td class="mono">{{ uid or tag or '—' }}</td><td>{{ label or ('nepoznata kartica' if not cid else '') }}</td><td class="n">{{ n }}</td><td class="n">{{ '%.2f'|format((wh or 0)/1000) }}</td><td class="n">{{ '%.2f'|format(eur or 0) }}</td>
+<td>{% if cid %}<a href="/sessions?card_id={{ cid }}&date_from={{ date_from }}&date_to={{ date_to }}">detalji</a>{% endif %}</td></tr>{% else %}<tr><td colspan="6" class="muted">Nema podataka.</td></tr>{% endfor %}</table></div>
+{% endblock %}

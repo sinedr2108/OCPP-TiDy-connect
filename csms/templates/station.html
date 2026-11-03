@@ -1,0 +1,35 @@
+{% extends "base.html" %}{% block content %}
+<h1>{{ st.name or st.charge_point_id }} <span class="pill {{ 'ok' if online }}">{{ 'online' if online else 'offline' }}</span></h1>
+{% if new_pw %}<div class="card"><h2>Lozinka punionice (prikazuje se samo jednom)</h2><p>Upiši je u punionicu kao OCPP lozinku / AuthorizationKey (korisničko ime = Charge Point ID):</p><span class="secret mono">{{ new_pw }}</span></div>{% endif %}
+<div class="grid">
+<div class="card"><h2>Podaci</h2><table>
+<tr><td class="muted">Charge Point ID</td><td class="mono">{{ st.charge_point_id }}</td></tr>
+<tr><td class="muted">Proizvođač</td><td>{{ st.vendor or '—' }} {{ st.model }}</td></tr>
+<tr><td class="muted">Serijski broj</td><td>{{ st.serial or '—' }}</td></tr><tr><td class="muted">Firmware</td><td>{{ st.firmware or '—' }}</td></tr>
+<tr><td class="muted">OCPP</td><td>{{ st.ocpp_version or '—' }}</td></tr>
+<tr><td class="muted">URL</td><td class="mono">{% if st.security_profile >= 2 %}wss://{{ host }}:{{ wss_port }}{% else %}ws://{{ host }}:{{ ws_port }}{% endif %}/ocpp/{{ st.charge_point_id }}</td></tr></table>
+<p class="muted">{{ VENDORS.get(st.vendor_profile, VENDORS.generic).notes }}</p></div>
+<div class="card"><h2>Konektori</h2><table><tr><th>#</th><th>Status</th><th>Greška</th></tr>{% for c in conns %}<tr><td>{{ c.connector_id }}</td><td>{{ c.status }}</td><td>{{ c.error_code }}</td></tr>{% else %}<tr><td colspan="3" class="muted">Još nema statusa.</td></tr>{% endfor %}</table></div>
+</div>
+<div class="card"><h2>Postavke</h2><form method="post" action="/stations/{{ st.id }}" class="row"><input type="hidden" name="csrf" value="{{ csrf }}">
+<label>Naziv<input name="name" value="{{ st.name }}"></label><label>Lokacija<input name="location" value="{{ st.location }}"></label>
+<label>Proizvođač<select name="vendor_profile">{% for k,v in VENDORS.items() %}<option value="{{ k }}" {{ 'selected' if st.vendor_profile==k }}>{{ v.label }}</option>{% endfor %}</select></label>
+<label>Sigurnosni profil<select name="security_profile">{% for p,l in [(0,'0 – bez autentifikacije (samo test)'),(1,'1 – Basic Auth'),(2,'2 – TLS + Basic Auth'),(3,'3 – mTLS')] %}<option value="{{ p }}" {{ 'selected' if st.security_profile==p }}>{{ l }}</option>{% endfor %}</select></label>
+<label>Cijena EUR/kWh (prazno = zadana {{ default_price }})<input name="price_per_kwh" value="{{ st.price_per_kwh if st.price_per_kwh is not none else '' }}"></label>
+<label><span><input type="checkbox" name="approved" value="1" {{ 'checked' if st.approved }}> odobrena</span></label><button>Spremi</button></form>
+<form method="post" action="/stations/{{ st.id }}/password" class="row" style="margin-top:12px"><input type="hidden" name="csrf" value="{{ csrf }}">
+<label><span><input type="checkbox" name="push" value="1" {{ 'checked' if online }}> pošalji punionici (preporučeno dok je online)</span></label><button class="sec">Generiraj novu lozinku</button></form></div>
+<div class="card"><h2>Naredbe</h2>
+<form method="post" action="/stations/{{ st.id }}/command" class="row"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="cmd" value="remote_start">
+<label>Kartica<select name="card_uid">{% for c in cards %}<option value="{{ c.uid }}">{{ c.uid }} {{ c.label }}</option>{% endfor %}</select></label>
+<label>Konektor/EVSE<input type="number" name="connector_id" value="1" min="1" style="width:80px"></label><button {{ 'disabled' if not online }}>Daljinski start</button></form>
+{% for t in active %}<form method="post" action="/stations/{{ st.id }}/command" class="row" style="margin-top:8px"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="cmd" value="remote_stop"><input type="hidden" name="tx_id" value="{{ t.ocpp_tx_id }}">
+<span>Punjenje {{ t.ocpp_tx_id }} na konektoru {{ t.connector_id }} · {{ '%.2f'|format(t.energy_kwh) }} kWh</span><button class="bad" {{ 'disabled' if not online }}>Zaustavi</button></form>{% endfor %}
+<div class="row" style="margin-top:12px">{% for c,l in [('reset','Soft reset'),('reset_hard','Hard reset'),('unlock','Otključaj konektor 1'),('install_ca','Instaliraj CA certifikat'),('request_csr','Zatraži certifikat (CSR)')] %}
+<form method="post" action="/stations/{{ st.id }}/command" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="cmd" value="{{ c }}"><button class="sec" {{ 'disabled' if not online }}>{{ l }}</button></form>{% endfor %}
+{% if st.ocpp_version == '1.6J' %}<form method="post" action="/stations/{{ st.id }}/command" class="row"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="cmd" value="set_profile">
+<select name="profile"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select><button class="sec" {{ 'disabled' if not online }}>Pošalji SecurityProfile</button></form>{% endif %}
+</div>
+<p class="muted">Prelazak na viši profil: 1) instaliraj CA certifikat, 2) za profil 3 zatraži certifikat (CSR) i pričekaj "certificate_signed", 3) promijeni profil ovdje u postavkama, 4) pošalji SecurityProfile punionici (1.6J) ili promijeni NetworkProfile (2.x).</p></div>
+<div class="card"><h2>Događaji</h2><table>{% for e in events %}<tr><td>{{ e.ts.strftime('%d.%m. %H:%M:%S') }}</td><td>{{ e.kind }}</td><td class="mono" style="white-space:normal">{{ e.detail }}</td></tr>{% else %}<tr><td class="muted">Nema događaja.</td></tr>{% endfor %}</table></div>
+{% endblock %}

@@ -1,0 +1,13 @@
+services:
+  csms:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "9000:9000"   # OCPP ws://  (profil 1) – po želji zatvori
+      - "9443:9443"   # OCPP wss:// (profil 2 i 3)
+      - "127.0.0.1:8000:8000"  # web sučelje – izloži preko reverse proxyja s HTTPS-om
+    volumes:
+      - csms-data:/data
+volumes:
+  csms-data:

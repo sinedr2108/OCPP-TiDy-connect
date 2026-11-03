@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block content %}
+<h1>Korisnici</h1>
+<div class="card"><h2>Novi korisnik</h2><form method="post" action="/users" class="row"><input type="hidden" name="csrf" value="{{ csrf }}">
+<label>E-mail<input type="email" name="email" required></label><label>Ime<input name="name"></label><label>Početna lozinka (min. 10)<input type="password" name="password" minlength="10" required></label>
+<label><span><input type="checkbox" name="is_admin" value="1"> administrator</span></label><button>Dodaj</button></form></div>
+<div class="card"><table><tr><th>Ime</th><th>E-mail</th><th>Uloga</th><th>MFA</th><th>Status</th><th></th></tr>
+{% for u in rows %}<tr><td>{{ u.name }}</td><td>{{ u.email }}</td><td>{{ 'admin' if u.is_admin else 'korisnik' }}</td>
+<td>{% if u.mfa_enabled %}<span class="pill ok">da</span>{% else %}<span class="pill">ne</span>{% endif %}</td>
+<td>{% if not u.active %}<span class="pill off">neaktivan</span>{% elif u.locked_until %}<span class="pill off">zaključan</span>{% else %}<span class="pill ok">aktivan</span>{% endif %}</td>
+<td>{% for a,l in [('toggle_active','Aktiviraj/deaktiviraj'),('reset_mfa','Resetiraj MFA'),('unlock','Otključaj')] %}<form class="inline" method="post" action="/users/{{ u.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="{{ a }}"><button class="sec">{{ l }}</button></form> {% endfor %}
+<a href="/sessions?user_id={{ u.id }}">punjenja</a></td></tr>{% endfor %}</table></div>
+{% endblock %}

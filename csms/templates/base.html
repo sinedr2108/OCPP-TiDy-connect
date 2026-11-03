@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="hr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}OCPP Charge{% endblock %}</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--fg:#1d2330;--muted:#667085;--line:#e4e7ec;--acc:#0b7a53;--acc2:#e7f5ef;--bad:#b42318;--warn:#b54708}
+@media (prefers-color-scheme:dark){:root{--bg:#12151b;--card:#1b2029;--fg:#e6e8ec;--muted:#98a2b3;--line:#2b313c;--acc:#3ccf91;--acc2:#16352a;--bad:#f97066;--warn:#fdb022}}
+a{color:var(--acc)}*{box-sizing:border-box}body{margin:0;font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--fg)}
+header{background:var(--card);border-bottom:1px solid var(--line)}nav{max-width:1150px;margin:auto;display:flex;gap:4px;align-items:center;padding:10px 16px;flex-wrap:wrap}
+nav a{color:var(--fg);text-decoration:none;padding:6px 10px;border-radius:6px}nav a:hover{background:var(--acc2)}nav .brand{font-weight:700;color:var(--acc);margin-right:12px}nav .sp{flex:1}
+main{max-width:1150px;margin:auto;padding:20px 16px}h1{font-size:22px;margin:4px 0 16px}h2{font-size:17px;margin:0 0 12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px;overflow-x:auto}
+.grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}.stat .v{font-size:26px;font-weight:700}.stat .l{color:var(--muted);font-size:13px}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);white-space:nowrap}th{color:var(--muted);font-weight:600;font-size:13px}td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+input,select,button{font:inherit;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg)}button,.btn{background:var(--acc);color:#fff;border:0;cursor:pointer;text-decoration:none;display:inline-block;padding:7px 12px;border-radius:6px}
+button.sec{background:transparent;color:var(--fg);border:1px solid var(--line)}button.bad{background:var(--bad)}
+form.inline{display:inline}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:end}.row label{display:flex;flex-direction:column;font-size:13px;color:var(--muted);gap:3px}
+.flash{background:var(--acc2);border:1px solid var(--acc);padding:10px 14px;border-radius:8px;margin-bottom:16px}
+.pill{font-size:12px;padding:2px 8px;border-radius:99px;background:var(--line)}.ok{background:var(--acc2);color:var(--acc)}.off{color:var(--bad)}.muted{color:var(--muted)}
+code,.mono{font-family:ui-monospace,Consolas,monospace;font-size:13px}.secret{font-size:18px;padding:10px;background:var(--acc2);border-radius:6px;display:inline-block;user-select:all}
+.login{max-width:380px;margin:60px auto}.login input{width:100%;margin-bottom:10px}.login button{width:100%}
+</style>
+</head>
+<body>
+{% if user %}<header><nav>
+<a class="brand" href="/">⚡ OCPP Charge</a>
+<a href="/">Pregled</a><a href="/sessions">Punjenja</a><a href="/reports">Izvještaji</a><a href="/cards">Kartice</a>
+{% if user.is_admin %}<a href="/stations">Punionice</a><a href="/users">Korisnici</a><a href="/settings">Postavke</a>{% endif %}
+<span class="sp"></span><a href="/account">{{ user.name or user.email }}</a><a href="/logout">Odjava</a>
+</nav></header>{% endif %}
+<main>
+{% if flash %}<div class="flash">{{ flash }}</div>{% endif %}
+{% block content %}{% endblock %}
+</main>
+</body></html>

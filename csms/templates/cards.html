@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% block content %}
+<h1>RFID kartice</h1>
+{% if user.is_admin %}<div class="card"><h2>Nova kartica</h2><form method="post" action="/cards" class="row"><input type="hidden" name="csrf" value="{{ csrf }}">
+<label>UID (hex, npr. 04A1B2C3D4)<input name="uid" required class="mono"></label><label>Naziv<input name="label" placeholder="npr. Službeno vozilo 1"></label>
+<label>Korisnik<select name="user_id"><option value="">— bez korisnika —</option>{% for u in users %}<option value="{{ u.id }}">{{ u.name or u.email }}</option>{% endfor %}</select></label><button>Dodaj</button></form>
+<p class="muted">Savjet: prisloni nepoznatu karticu na punionicu, njen UID će se pojaviti u Postavkama → Događaji (odbijena autorizacija) ili na punjenju.</p></div>{% endif %}
+<div class="card"><table><tr><th>UID</th><th>Naziv</th><th>Korisnik</th><th>Status</th>{% if user.is_admin %}<th></th>{% endif %}</tr>
+{% for c in rows %}<tr><td class="mono">{{ c.uid }}</td><td>{{ c.label }}</td>
+<td>{% if user.is_admin %}<form class="inline" method="post" action="/cards/{{ c.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="assign">
+<select name="user_id" onchange="this.form.submit()"><option value="">—</option>{% for u in users %}<option value="{{ u.id }}" {{ 'selected' if c.user_id==u.id }}>{{ u.name or u.email }}</option>{% endfor %}</select></form>{% else %}{{ c.user.email if c.user }}{% endif %}</td>
+<td>{% if c.active %}<span class="pill ok">aktivna</span>{% else %}<span class="pill off">blokirana</span>{% endif %}</td>
+{% if user.is_admin %}<td><form class="inline" method="post" action="/cards/{{ c.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="toggle"><button class="sec">{{ 'Blokiraj' if c.active else 'Aktiviraj' }}</button></form>
+<a href="/sessions?card_id={{ c.id }}">punjenja</a></td>{% endif %}</tr>
+{% else %}<tr><td colspan="5" class="muted">Nema kartica.</td></tr>{% endfor %}</table></div>
+{% endblock %}

@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% block content %}
+<h1>Moj račun</h1>
+<div class="card"><h2>Dvofaktorska autentifikacija (MFA)</h2>
+{% if user.mfa_enabled %}<p><span class="pill ok">Uključeno</span> Prijava traži kod iz aplikacije.</p>
+{% else %}
+<p>Skeniraj QR kod u aplikaciji (Google Authenticator, Microsoft Authenticator, 1Password…), zatim upiši kod za potvrdu.</p>
+<div style="width:200px;background:#fff;padding:8px;border-radius:8px">{{ qr|safe }}</div>
+<p class="muted">Ručni unos: <span class="mono">{{ secret }}</span></p>
+<form method="post" action="/account/mfa/enable" class="row"><input type="hidden" name="csrf" value="{{ csrf }}">
+<label>Kod<input name="code" inputmode="numeric" required></label><button>Uključi MFA</button></form>
+{% endif %}</div>
+<div class="card"><h2>Promjena lozinke</h2>
+<form method="post" action="/account/password" class="row"><input type="hidden" name="csrf" value="{{ csrf }}">
+<label>Stara lozinka<input type="password" name="old" required></label>
+<label>Nova lozinka (min. 10)<input type="password" name="new" minlength="10" required></label><button>Promijeni</button></form></div>
+{% endblock %}
