@@ -97,3 +97,24 @@ def test_profile3_mtls(tmp_path):
 def test_unknown_card_rejected():
     code, out = sim("--id", "E-16", "--password", PW, "--url", WS, "--tag", "FFFF0000")
     assert "Authorize: Invalid" in out
+
+
+def test_proxy_tls_headers(monkeypatch):
+    """Iza Caddyja: TLS i klijentski certifikat dolaze kroz zaglavlja proxyja."""
+    from types import SimpleNamespace
+    from csms import ocpp_server
+
+    conn = SimpleNamespace(transport=SimpleNamespace(get_extra_info=lambda k: None))
+
+    def req(**h):
+        return SimpleNamespace(path="/ocpp/E-MTLS", headers=h)
+
+    monkeypatch.setattr(config, "TRUST_PROXY_TLS", False)
+    assert not ocpp_server.check_access(conn, req(**{"X-Forwarded-Proto": "https",
+                                                     "X-Client-Cert-Subject": "CN=E-MTLS"}))[0]
+    monkeypatch.setattr(config, "TRUST_PROXY_TLS", True)
+    assert ocpp_server.check_access(conn, req(**{"X-Forwarded-Proto": "https",
+                                                 "X-Client-Cert-Subject": "CN=E-MTLS,O=Sim"}))[0]
+    assert not ocpp_server.check_access(conn, req(**{"X-Forwarded-Proto": "https",
+                                                     "X-Client-Cert-Subject": "CN=E-201"}))[0]
+    assert not ocpp_server.check_access(conn, req(**{"X-Forwarded-Proto": "http"}))[0]

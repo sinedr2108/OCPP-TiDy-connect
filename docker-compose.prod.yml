@@ -1,0 +1,42 @@
+# Produkcija: Caddy (HTTPS na 443) ispred aplikacije.
+# Pokretanje: docker compose -f docker-compose.prod.yml up -d --build
+services:
+  csms:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      CSMS_TRUST_PROXY_TLS: "1"
+      CSMS_COOKIE_SECURE: "1"
+      CSMS_PUBLIC_WS_URL: "wss://${CSMS_PUBLIC_HOSTNAME}/ocpp"
+      CSMS_PUBLIC_WSS_URL: "wss://${CSMS_PUBLIC_HOSTNAME}/ocpp"
+      FORWARDED_ALLOW_IPS: "*"
+    volumes:
+      - csms-data:/data
+    # Portovi NISU izloženi van: sav promet ide kroz Caddy.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/login')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  caddy:
+    image: caddy:2.8
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - csms-data:/csmsdata:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      csms:
+        condition: service_healthy
+
+volumes:
+  csms-data:
+  caddy-data:
+  caddy-config:

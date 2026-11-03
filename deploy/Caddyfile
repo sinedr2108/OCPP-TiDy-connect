@@ -1,0 +1,26 @@
+# Caddy: automatski HTTPS (Let's Encrypt) za web sučelje i OCPP (wss://) na portu 443.
+# Klijentski certifikati punionica (sigurnosni profil 3) provjeravaju se ugrađenim CA-om.
+{
+	email {$CSMS_ACME_EMAIL}
+}
+
+{$CSMS_PUBLIC_HOSTNAME} {
+	tls {
+		client_auth {
+			mode verify_if_given
+			trust_pool file /csmsdata/pki/ca.crt
+		}
+	}
+
+	@ocpp path /ocpp/*
+	handle @ocpp {
+		reverse_proxy csms:9000 {
+			header_up X-Forwarded-Proto https
+			header_up X-Client-Cert-Subject "{http.request.tls.client.subject}"
+		}
+	}
+
+	handle {
+		reverse_proxy csms:8000
+	}
+}

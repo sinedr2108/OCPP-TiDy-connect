@@ -34,14 +34,25 @@ Svi navedeni proizvođači koriste standardni OCPP, pa sustav radi s njima bez p
 
 ## Pokretanje
 
-### Docker (preporučeno)
+📘 **Detaljne upute korak po korak (server, HTTPS, prva proba, spajanje punionica, backup): [docs/INSTALACIJA.md](docs/INSTALACIJA.md)**
+
+### Server (produkcija, automatski HTTPS)
 
 ```bash
-cp .env.example .env      # i promijeni lozinke, tajni ključ i hostname
+cp .env.example .env      # popuni lozinke, tajni ključ, domenu
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+Caddy nabavlja Let's Encrypt certifikat. Web sučelje i OCPP rade na `https://<domena>` i `wss://<domena>/ocpp/<ID>`.
+
+### Lokalna proba
+
+```bash
+cp .env.example .env      # CSMS_PUBLIC_HOSTNAME=localhost
 docker compose up -d --build
 ```
 
-Web sučelje: `http://localhost:8000` (prijava s `CSMS_ADMIN_EMAIL` / `CSMS_ADMIN_PASSWORD`). U produkciji ga stavi iza reverse proxyja s HTTPS-om (Caddy, nginx, Traefik) i postavi `CSMS_COOKIE_SECURE=1`.
+Web sučelje: `http://localhost:8000`, OCPP: `ws://localhost:9000/ocpp/<ID>` i `wss://localhost:9443/ocpp/<ID>` (ugrađeni CA).
 
 ### Lokalno (razvoj)
 

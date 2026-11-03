@@ -19,9 +19,16 @@ OCPP_WS_PORT = int(os.getenv("CSMS_OCPP_WS_PORT", "9000"))     # ws://  -> sigur
 OCPP_WSS_PORT = int(os.getenv("CSMS_OCPP_WSS_PORT", "9443"))   # wss:// -> sigurnosni profil 2/3
 # Ime (DNS) pod kojim su punionice spajaju – ulazi u serverski TLS certifikat
 PUBLIC_HOSTNAME = os.getenv("CSMS_PUBLIC_HOSTNAME", "localhost")
+# URL-ovi koje sučelje prikazuje za konfiguraciju punionica
+PUBLIC_WS_URL = os.getenv("CSMS_PUBLIC_WS_URL", f"ws://{PUBLIC_HOSTNAME}:{OCPP_WS_PORT}/ocpp")
+PUBLIC_WSS_URL = os.getenv("CSMS_PUBLIC_WSS_URL", f"wss://{PUBLIC_HOSTNAME}:{OCPP_WSS_PORT}/ocpp")
 # Vlastiti certifikat (npr. Let's Encrypt). Ako nije zadan, koristi se ugrađeni CA.
 TLS_CERT_FILE = os.getenv("CSMS_TLS_CERT_FILE")
 TLS_KEY_FILE = os.getenv("CSMS_TLS_KEY_FILE")
+
+# Iza reverse proxyja (Caddy) koji radi TLS: vjeruj zaglavljima X-Forwarded-Proto i
+# X-Client-Cert-Subject. Uključi SAMO ako OCPP port nije javno dostupan mimo proxyja!
+TRUST_PROXY_TLS = os.getenv("CSMS_TRUST_PROXY_TLS", "0") == "1"
 
 # Nepoznate punionice: automatski ih upiši kao "pending" (admin ih odobrava)
 AUTO_REGISTER_UNKNOWN = os.getenv("CSMS_AUTO_REGISTER", "1") == "1"

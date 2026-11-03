@@ -35,7 +35,19 @@ def _cp_id_from_path(path: str) -> str:
     return unquote(path.split("?")[0].rstrip("/").rsplit("/", 1)[-1])
 
 
-def _peer_cn(connection) -> str | None:
+def _cn_from_subject(subject: str) -> str | None:
+    """'CN=SIM-01,O=Firma' -> 'SIM-01' (format koji šalje Caddy)."""
+    for part in subject.split(","):
+        k, _, v = part.strip().partition("=")
+        if k.upper() == "CN":
+            return v
+    return None
+
+
+def _peer_cn(connection, request=None) -> str | None:
+    if config.TRUST_PROXY_TLS and request is not None:
+        subj = request.headers.get("X-Client-Cert-Subject", "")
+        return _cn_from_subject(subj) if subj else None
     sslobj = connection.transport.get_extra_info("ssl_object")
     if not sslobj:
         return None
@@ -55,6 +67,8 @@ def check_access(connection, request) -> tuple[bool, str, bool]:
     if not cp_id or cp_id == "ocpp":
         return False, "nedostaje ChargePointId u URL-u", False
     is_tls = connection.transport.get_extra_info("ssl_object") is not None
+    if config.TRUST_PROXY_TLS and request.headers.get("X-Forwarded-Proto", "").lower() == "https":
+        is_tls = True
     creds = parse_basic_auth(request.headers.get("Authorization"))
 
     with session_scope() as s:
@@ -72,7 +86,7 @@ def check_access(connection, request) -> tuple[bool, str, bool]:
         if profile >= 2 and not is_tls:
             return False, f"profil {profile} zahtijeva wss:// (TLS)", st.approved
         if profile == 3:
-            cn = _peer_cn(connection)
+            cn = _peer_cn(connection, request)
             if cn != cp_id:
                 return False, f"profil 3: klijentski certifikat nedostaje ili CN≠{cp_id}", st.approved
             return True, "mTLS ok", st.approved

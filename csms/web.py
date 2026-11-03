@@ -310,7 +310,7 @@ async def stations(request: Request, user: User = Depends(admin_user)):
     with session_scope() as s:
         rows = s.query(Station).order_by(Station.charge_point_id).all()
     return render(request, "stations.html", user, rows=rows, online=set(ocpp_server.CONNECTED),
-                  ws_port=config.OCPP_WS_PORT, wss_port=config.OCPP_WSS_PORT, host=config.PUBLIC_HOSTNAME)
+                  ws_url=config.PUBLIC_WS_URL, wss_url=config.PUBLIC_WSS_URL)
 
 
 @app.post("/stations", dependencies=[Depends(check_csrf)])
@@ -344,8 +344,7 @@ async def station_detail(request: Request, sid: int, user: User = Depends(admin_
         default_price = get_setting(s, "price_per_kwh")
     return render(request, "station.html", user, st=st, conns=conns, active=active, cards=cards, events=events,
                   online=st.charge_point_id in ocpp_server.CONNECTED, new_pw=request.session.pop("new_pw", None),
-                  default_price=default_price, ws_port=config.OCPP_WS_PORT, wss_port=config.OCPP_WSS_PORT,
-                  host=config.PUBLIC_HOSTNAME)
+                  default_price=default_price, ws_url=config.PUBLIC_WS_URL, wss_url=config.PUBLIC_WSS_URL)
 
 
 @app.post("/stations/{sid}", dependencies=[Depends(check_csrf)])
