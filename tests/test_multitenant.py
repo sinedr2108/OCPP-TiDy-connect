@@ -196,4 +196,6 @@ def test_card_learning_by_tapping_on_station(monkeypatch):
 
 def test_nfc_scan_ui_present():
     c = login("a-emp@test.hr")
+    assert re.search(r'src="/app\.js\?v=[0-9a-f]{10}"', c.get("/app").text)
+    assert c.get("/app.js").headers["cache-control"] == "no-cache"
     assert 'id="nfc-scan"' in c.get("/app").text and "NDEFReader" in c.get("/app.js").text

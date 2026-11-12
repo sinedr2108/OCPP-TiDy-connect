@@ -5,6 +5,7 @@ Instalira se s početnog zaslona mobitela (bez App Storea / Google Playa).
 from __future__ import annotations
 
 from fastapi import Depends, Form, HTTPException, Request
+import hashlib
 import secrets
 
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -13,7 +14,7 @@ from . import notify, ocpp_server, services
 from .db import (ConnectorStatus, PushSubscription, RfidCard, Station, Transaction, User, log_event,
                  session_scope)
 from .vendors import normalize_id_tag
-from .web import (app, check_csrf, current_user, flash, month_start, org_name, render, stations_for,
+from .web import (app, check_csrf, templates, current_user, flash, month_start, org_name, render, stations_for,
                   tx_totals)
 
 
@@ -257,7 +258,7 @@ self.addEventListener('notificationclick', e => {
 });
 """
 
-APP_JS = """if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+APP_JS = """if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js', {updateViaCache: 'none'});
 document.querySelectorAll('[data-confirm]').forEach(f => f.addEventListener('submit', e => {
   if (!confirm(f.dataset.confirm)) e.preventDefault();
 }));
@@ -338,6 +339,11 @@ async def service_worker():
     return Response(SW, media_type="application/javascript", headers={"Cache-Control": "no-cache"})
 
 
+# Verzija u URL-u (/app.js?v=...) da CDN/preglednik nakon nadogradnje odmah uzme novu skriptu.
+ASSET_VERSION = hashlib.sha256((APP_JS + SW).encode()).hexdigest()[:10]
+templates.env.globals["ASSET_VERSION"] = ASSET_VERSION
+
+
 @app.get("/app.js")
 async def app_js():
-    return Response(APP_JS, media_type="application/javascript")
+    return Response(APP_JS, media_type="application/javascript", headers={"Cache-Control": "no-cache"})

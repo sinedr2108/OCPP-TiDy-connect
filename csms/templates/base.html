@@ -37,5 +37,5 @@ code,.mono{font-family:ui-monospace,Consolas,monospace;font-size:13px}.secret{fo
 {% if flash %}<div class="flash">{{ flash }}</div>{% endif %}
 {% block content %}{% endblock %}
 </main>
-<script src="/app.js" defer></script>
+<script src="/app.js?v={{ ASSET_VERSION }}" defer></script>
 </body></html>
