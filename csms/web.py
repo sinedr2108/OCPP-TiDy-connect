@@ -575,6 +575,23 @@ async def access_delete(request: Request, aid: int, back: str = Form(""), user: 
     return RedirectResponse(safe_next(back) or "/stations", 303)
 
 
+@app.post("/stations/{sid}/delete", dependencies=[Depends(check_csrf)])
+async def station_delete(request: Request, sid: int, user: User = Depends(admin_user)):
+    """Brisanje je dozvoljeno samo za punionicu bez punjenja (npr. testne ili krivo upisane)."""
+    with session_scope() as s:
+        st = get_or_404(s, Station, sid)
+        if s.query(Transaction).filter_by(station_id=sid).count():
+            flash(request, "Punionica ima punjenja pa se ne može obrisati. Možeš joj ukloniti odobrenje.")
+            return RedirectResponse(f"/stations/{sid}", 303)
+        cp_id = st.charge_point_id
+        s.query(StationAccess).filter_by(station_id=sid).delete()
+        s.query(ConnectorStatus).filter_by(station_id=sid).delete()
+        s.delete(st)
+        log_event(s, cp_id, "station_deleted", f"by {user.email}")
+    flash(request, f"Punionica {cp_id} je obrisana.")
+    return RedirectResponse("/stations", 303)
+
+
 @app.post("/stations/{sid}/password", dependencies=[Depends(check_csrf)])
 async def station_password(request: Request, sid: int, push: str = Form(""), user: User = Depends(admin_user)):
     pw = generate_station_password()

@@ -149,6 +149,13 @@ def test_admin_pages_render_and_grant():
         gid = s.query(StationAccess).filter_by(station_id=IDS["st_a"], organization_id=IDS["h"]).one().id
     c.post(f"/access/{gid}/delete", data={"csrf": tok})
     assert services.authorize_tag("MTMOM1", "MT-A").status == "NotAtThisLocation"
+    with session_scope() as s:
+        tmp = Station(charge_point_id="MT-DEL", approved=False); s.add(tmp); s.flush()
+        tmp_id = tmp.id
+    c.post(f"/stations/{tmp_id}/delete", data={"csrf": tok})
+    c.post(f"/stations/{IDS['st_h']}/delete", data={"csrf": tok})  # ima punjenja -> ostaje
+    with session_scope() as s:
+        assert s.get(Station, tmp_id) is None and s.get(Station, IDS["st_h"]) is not None
     r = c.post("/orgs", data={"name": "Udruga U", "kind": "association", "csrf": tok}, follow_redirects=False)
     assert r.headers["location"].startswith("/orgs/")
 
