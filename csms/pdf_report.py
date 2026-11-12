@@ -65,7 +65,7 @@ class _PDF(FPDF):
         self.set_y(-12)
         self.set_font(self.family, "", 8)
         self.set_text_color(120)
-        self.cell(0, 6, self.t(f"{self.footer_text} · stranica {self.page_no()}/{{nb}}"), align="C")
+        self.cell(0, 6, self.t(f"{self.footer_text} · stranica {self.page_no()}/{{nb}} · Powered by TiD-INTEL d.o.o. · tid-intel.hr"), align="C")
 
 
 def _table(pdf: _PDF, headers: list[str], widths: list[float], rows: list[list], right: set[int],

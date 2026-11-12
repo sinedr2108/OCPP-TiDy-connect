@@ -1,0 +1,53 @@
+{% extends "base.html" %}{% block title %}Upute · TiDy Charge{% endblock %}{% block bodyclass %}app{% endblock %}{% block content %}
+<h1>Upute za korištenje</h1>
+
+<div class="card help"><h2>📱 1. Stavi aplikaciju na mobitel</h2>
+<ol><li>Otvori <b>{{ base_url }}</b> u pregledniku mobitela i prijavi se e-mailom i lozinkom koje si dobio.</li>
+<li><b>iPhone (Safari):</b> pritisni <i>Dijeli</i> pa <i>Dodaj na početni zaslon</i>.</li>
+<li><b>Android (Chrome):</b> pritisni <i>⋮</i> pa <i>Dodaj na početni zaslon</i> ili <i>Instaliraj aplikaciju</i>.</li>
+<li>Aplikaciju od sada otvaraš ikonom TiDy Charge, kao svaku drugu.</li></ol></div>
+
+<div class="card help"><h2>⚡ 2. Pokreni punjenje</h2>
+<p><b>Karticom:</b> priključi kabel u vozilo i prisloni svoju RFID karticu na čitač punionice.</p>
+<p><b>Iz aplikacije:</b></p>
+<ol><li>Priključi kabel u vozilo.</li>
+<li>U <a href="/app">Aplikaciji</a> pod <i>Moje punionice</i> odaberi punionicu ili mobitelom skeniraj QR kod na punionici.</li>
+<li>Pritisni <b>Start</b> kod željenog konektora.</li></ol>
+<p class="muted">Vidiš samo punionice za koje imaš dozvolu. Ako neka nedostaje, javi se administratoru.</p></div>
+
+<div class="card help"><h2>⏹ 3. Prati i zaustavi punjenje</h2>
+<ol><li>Dok vozilo puni, na vrhu Aplikacije vidiš kWh, iznos u € i snagu uživo.</li>
+<li>Za kraj pritisni <b>Zaustavi punjenje</b> ili ponovno prisloni karticu na punionicu, pa odspoji kabel.</li></ol></div>
+
+<div class="card help"><h2>💳 4. Dodaj svoju RFID karticu</h2>
+<p>U Aplikaciji pod <i>Moje RFID kartice → Dodaj karticu</i> imaš tri načina:</p>
+<ol><li><b>Prisloni na punionicu</b> (preporučeno): odaberi punionicu, pritisni <i>Dodaj prislanjanjem</i> i u dvije minute prisloni karticu na njen čitač.</li>
+<li><b>Skeniraj mobitelom:</b> radi u Chromeu na Androidu; karticu prisloni na poleđinu mobitela.</li>
+<li><b>Upiši broj ručno.</b> Ako kartica nakon toga ne radi na punionici, pritisni <i>Obrni</i> i dodaj je ponovno.</li></ol>
+<p><b>Izgubljena kartica?</b> Pritisni <i>Izgubljena? Blokiraj</i> pokraj kartice i nitko je više ne može koristiti.</p></div>
+
+<div class="card help"><h2>🔔 5. Obavijesti</h2>
+<p>U Aplikaciji pod <i>Obavijesti</i> pritisni <b>Uključi obavijesti na ovom uređaju</b>. Javit ćemo ti kad vozilo prestane puniti i kad punjenje završi. Na iPhoneu obavijesti rade tek kad je aplikacija dodana na početni zaslon.</p></div>
+
+<div class="card help"><h2>📄 6. Potrošnja i obračun</h2>
+<ol><li><a href="/sessions">Punjenja</a>: popis svih tvojih punjenja s kWh i iznosom, uz izvoz u CSV.</li>
+<li><a href="/reports">Izvještaji</a>: zbroj po razdoblju i mjesečni obračun u PDF-u.</li></ol></div>
+
+<div class="card help"><h2>🔒 7. Lozinka i sigurnost</h2>
+<p>Pritisni svoje ime u izborniku (<a href="/account">Moj račun</a>). Tamo mijenjaš lozinku i uključuješ prijavu u dva koraka (MFA) aplikacijom poput Google ili Microsoft Authenticatora.</p></div>
+
+{% if user and user.is_manager %}<div class="card help"><h2>🏢 Za administratore organizacije</h2>
+<ol><li><a href="/users">Korisnici</a>: dodaj zaposlenike, ukućane ili goste svoje organizacije i odredi im ulogu.</li>
+<li><a href="/cards">Kartice</a>: upiši kartice i dodijeli ih korisnicima, blokiraj izgubljene.</li>
+<li><a href="/reports">Izvještaji</a>: potrošnja po korisniku i punionici te mjesečni PDF obračun za cijelu organizaciju.</li>
+<li><a href="/stations">Punionice</a>: status punionica koje tvoja organizacija smije koristiti.</li></ol></div>{% endif %}
+
+{% if user and user.is_admin %}<div class="card help"><h2>🛠 Za administratora platforme</h2>
+<ol><li><a href="/orgs">Organizacije</a>: dodaj tvrtku, kućanstvo, udrugu ili javno mjesto.</li>
+<li><a href="/stations">Punionice</a>: dodaj punionicu, upiši u nju prikazani URL, Charge Point ID i lozinku, i odaberi kod koga je montirana.</li>
+<li>Na stranici punionice pod <i>Tko smije koristiti ovu punionicu</i> daj dozvolu organizaciji ili pojedinom korisniku i po želji upiši cijenu (0 = besplatno).</li>
+<li>Isprintaj <i>QR kod za aplikaciju</i> sa stranice punionice i zalijepi ga na punionicu.</li>
+<li><a href="/settings">Postavke</a>: zadana cijena po kWh i dnevnik događaja.</li></ol></div>{% endif %}
+
+<p class="muted">Nešto ne radi? Javi se osobi koja ti je otvorila račun ili tvrtki <a href="https://tid-intel.hr" target="_blank" rel="noopener">TiD-INTEL d.o.o.</a></p>
+{% endblock %}

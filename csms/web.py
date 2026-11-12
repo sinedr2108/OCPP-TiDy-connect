@@ -255,6 +255,18 @@ async def logout(request: Request):
     return RedirectResponse("/login", 303)
 
 
+@app.get("/help", response_class=HTMLResponse)
+async def help_page(request: Request):
+    """Upute za korištenje; dostupne i bez prijave (npr. link u pozivnici novom korisniku)."""
+    user = None
+    uid = request.session.get("uid")
+    if uid:
+        with session_scope() as s:
+            u = s.get(User, uid)
+            user = u if u and u.active else None
+    return render(request, "help.html", user, base_url=config.PUBLIC_BASE_URL.replace("https://", ""))
+
+
 # ----------------------------------------------------------------- moj račun
 
 @app.get("/account", response_class=HTMLResponse)

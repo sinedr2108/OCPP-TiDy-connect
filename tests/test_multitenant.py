@@ -160,6 +160,17 @@ def test_admin_pages_render_and_grant():
     assert r.headers["location"].startswith("/orgs/")
 
 
+def test_help_and_footer():
+    anon = TestClient(app)
+    page = anon.get("/help")
+    assert page.status_code == 200 and "Upute za korištenje" in page.text
+    assert "Za administratora platforme" not in page.text
+    assert 'href="https://tid-intel.hr"' in anon.get("/login").text and "Powered by" in anon.get("/login").text
+    member = login("a-emp@test.hr").get("/help").text
+    assert "Za administratore organizacije" not in member and 'href="/help"' in member
+    assert "Za administratora platforme" in login("mt-admin@test.hr").get("/help").text
+
+
 def test_pwa_assets():
     c = TestClient(app)
     assert c.get("/manifest.webmanifest").json()["start_url"] == "/app"
