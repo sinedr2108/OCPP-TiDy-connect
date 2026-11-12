@@ -1,6 +1,6 @@
 # Windows Server + Cloudflare Tunnel (bez Dockera)
 
-Za server na kojem već radi Cloudflare Tunnel (npr. uz aplikaciju *evidencija*). OCPP Charge sluša samo na
+Za server na kojem već radi Cloudflare Tunnel (npr. uz aplikaciju *evidencija*). TiDy Charge sluša samo na
 `127.0.0.1` (web 8000, OCPP 9000), a izvana mu se pristupa preko tunela. Nema otvaranja portova na routeru ni
 lokalnih certifikata: HTTPS/WSS radi Cloudflare.
 

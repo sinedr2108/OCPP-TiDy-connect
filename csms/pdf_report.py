@@ -97,9 +97,14 @@ def build(st: Statement) -> bytes:
     pdf = _PDF(f"Obračun punjenja · {st.title} · {period}")
     pdf.alias_nb_pages()
     pdf.add_page()
-    pdf.set_text_color(11, 122, 83)
+    logo = Path(__file__).parent / "static" / "tid-charge-mark.png"
+    if logo.exists():
+        pdf.image(str(logo), x=pdf.w - pdf.r_margin - 34, y=pdf.t_margin - 2, w=34)
+    pdf.set_text_color(232, 70, 69)
     pdf.set_font(pdf.family, "B", 16)
-    pdf.cell(0, 9, pdf.t("Obračun punjenja"), new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(pdf.get_string_width(pdf.t("TiD")) + 0.2, 9, pdf.t("TiD"))
+    pdf.set_text_color(29, 35, 48)
+    pdf.cell(0, 9, pdf.t("y Charge · Obračun punjenja"), new_x="LMARGIN", new_y="NEXT")
     pdf.set_text_color(29, 35, 48)
     pdf.set_font(pdf.family, "B", 12)
     pdf.cell(0, 7, pdf.t(f"{st.title} · {period}"), new_x="LMARGIN", new_y="NEXT")

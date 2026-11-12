@@ -1,4 +1,4 @@
-# ⚡ OCPP Charge
+# ⚡ TiDy Charge
 
 Jednostavan sustav za upravljanje punionicama električnih vozila (CSMS / Central System).
 

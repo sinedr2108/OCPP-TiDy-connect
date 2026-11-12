@@ -165,6 +165,12 @@ def test_pwa_assets():
     assert c.get("/manifest.webmanifest").json()["start_url"] == "/app"
     assert "serviceWorker" in c.get("/app.js").text
     assert c.get("/sw.js").status_code == 200
+    man = c.get("/manifest.webmanifest").json()
+    assert man["name"] == "TiDy Charge"
+    for icon in man["icons"]:
+        r = c.get(icon["src"])
+        assert r.status_code == 200 and r.content.startswith(b"\x89PNG")
+    assert "TiD</span>y Charge" in c.get("/login").text
 
 
 def test_card_learning_by_tapping_on_station(monkeypatch):

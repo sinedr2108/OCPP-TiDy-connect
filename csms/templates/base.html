@@ -2,14 +2,15 @@
 <html lang="hr">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#0b7a53"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/app-icon.svg"><link rel="apple-touch-icon" href="/app-icon.svg">
-<title>{% block title %}OCPP Charge{% endblock %}</title>
+<meta name="theme-color" content="#1d1d1b"><link rel="manifest" href="/manifest.webmanifest?v={{ ASSET_VERSION }}"><link rel="icon" type="image/png" href="/static/favicon.png?v={{ ASSET_VERSION }}"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v={{ ASSET_VERSION }}">
+<meta name="apple-mobile-web-app-title" content="TiDy Charge">
+<title>{% block title %}TiDy Charge{% endblock %}</title>
 <style>
 :root{--bg:#f6f7f9;--card:#fff;--fg:#1d2330;--muted:#667085;--line:#e4e7ec;--acc:#0b7a53;--acc2:#e7f5ef;--bad:#b42318;--warn:#b54708}
 @media (prefers-color-scheme:dark){:root{--bg:#12151b;--card:#1b2029;--fg:#e6e8ec;--muted:#98a2b3;--line:#2b313c;--acc:#3ccf91;--acc2:#16352a;--bad:#f97066;--warn:#fdb022}}
 a{color:var(--acc)}*{box-sizing:border-box}body{margin:0;font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--fg)}
 header{background:var(--card);border-bottom:1px solid var(--line)}nav{max-width:1150px;margin:auto;display:flex;gap:4px;align-items:center;padding:10px 16px;flex-wrap:wrap}
-nav a{color:var(--fg);text-decoration:none;padding:6px 10px;border-radius:6px}nav a:hover{background:var(--acc2)}nav .brand{font-weight:700;color:var(--acc);margin-right:12px}nav .sp{flex:1}
+nav a{color:var(--fg);text-decoration:none;padding:6px 10px;border-radius:6px}nav a:hover{background:var(--acc2)}nav .brand{font-weight:700;color:var(--fg);margin-right:12px;display:flex;align-items:center;gap:8px}nav .brand img{border-radius:7px;display:block}.tid{color:#e84645}.loginlogo{display:block;margin:0 auto 6px;border-radius:22px}.login h1{text-align:center}nav .sp{flex:1}
 main{max-width:1150px;margin:auto;padding:20px 16px}h1{font-size:22px;margin:4px 0 16px}h2{font-size:17px;margin:0 0 12px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px;overflow-x:auto}
 .grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}.stat .v{font-size:26px;font-weight:700}.stat .l{color:var(--muted);font-size:13px}
@@ -27,7 +28,7 @@ code,.mono{font-family:ui-monospace,Consolas,monospace;font-size:13px}.secret{fo
 </head>
 <body class="{% block bodyclass %}{% endblock %}">
 {% if user %}<header><nav>
-<a class="brand" href="/">⚡ OCPP Charge</a>
+<a class="brand" href="/"><img src="/static/mark-96.png?v={{ ASSET_VERSION }}" alt="" width="30" height="30"><span><b class="tid">TiD</b>y Charge</span></a>
 <a href="/app">📱 Aplikacija</a><a href="/">Pregled</a><a href="/sessions">Punjenja</a><a href="/reports">Izvještaji</a><a href="/cards">Kartice</a>
 {% if user.is_manager %}<a href="/stations">Punionice</a><a href="/users">Korisnici</a>{% endif %}
 {% if user.is_admin %}<a href="/orgs">Organizacije</a><a href="/settings">Postavke</a>{% endif %}

@@ -1,5 +1,5 @@
 <#
-OCPP Charge - instalacija na Windows Server bez Dockera, iza Cloudflare tunela.
+TiDy Charge - instalacija na Windows Server bez Dockera, iza Cloudflare tunela.
 
 Pokreni kao administrator iz mape u koju je kloniran repozitorij (npr. C:\ocpp):
   powershell -ExecutionPolicy Bypass -File deploy\windows\install.ps1 -Hostname ocpp.tid-intel.com -AdminEmail admin@tid-intel.com
@@ -67,7 +67,7 @@ Start-ScheduledTask -TaskName $TaskName
 Start-Sleep -Seconds 8
 try {
   $r = Invoke-WebRequest -UseBasicParsing "http://127.0.0.1:8000/login" -TimeoutSec 10
-  Write-Host "OCPP Charge radi lokalno (HTTP $($r.StatusCode))." -ForegroundColor Green
+  Write-Host "TiDy Charge radi lokalno (HTTP $($r.StatusCode))." -ForegroundColor Green
 } catch {
   Write-Host "Web sučelje se ne javlja na 127.0.0.1:8000: $_" -ForegroundColor Red
 }

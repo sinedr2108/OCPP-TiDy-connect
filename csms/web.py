@@ -10,6 +10,7 @@ from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, or_, select
 from starlette.middleware.sessions import SessionMiddleware
@@ -22,9 +23,10 @@ from .security import (generate_station_password, hash_password, new_totp_secret
 from .timeutil import current_month, fmt, local_to_utc, month_bounds, to_local
 from .vendors import VENDOR_PROFILES, normalize_id_tag
 
-app = FastAPI(title="OCPP Charge CSMS", docs_url=None, redoc_url=None)
+app = FastAPI(title="TiDy Charge CSMS", docs_url=None, redoc_url=None)
 app.add_middleware(SessionMiddleware, secret_key=config.SECRET_KEY, same_site="strict",
                    https_only=config.COOKIE_SECURE, max_age=8 * 3600, session_cookie="csms_session")
+app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 templates.env.globals["VENDORS"] = VENDOR_PROFILES
 templates.env.globals["ORG_KINDS"] = ORG_KINDS

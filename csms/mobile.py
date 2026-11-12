@@ -7,6 +7,7 @@ from __future__ import annotations
 from fastapi import Depends, Form, HTTPException, Request
 import hashlib
 import secrets
+from pathlib import Path
 
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
@@ -239,14 +240,16 @@ async def notification_settings(request: Request, notify_email: str = Form(""), 
 # ----------------------------------------------------------------- PWA
 
 MANIFEST = """{
-  "name": "OCPP Charge",
-  "short_name": "Punjenje",
+  "name": "TiDy Charge",
+  "short_name": "TiDy Charge",
   "start_url": "/app",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#f6f7f9",
-  "theme_color": "#0b7a53",
-  "icons": [{"src": "/app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable"}]
+  "background_color": "#1d1d1b",
+  "theme_color": "#1d1d1b",
+  "icons": [{"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+            {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+            {"src": "/static/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}]
 }"""
 
 ICON = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="96" fill="#0b7a53"/>
@@ -258,9 +261,9 @@ self.addEventListener('activate', e => self.clients.claim());
 self.addEventListener('fetch', () => {});
 self.addEventListener('push', e => {
   let d = {};
-  try { d = e.data.json(); } catch (_) { d = {title: 'OCPP Charge', body: e.data ? e.data.text() : ''}; }
-  e.waitUntil(self.registration.showNotification(d.title || 'OCPP Charge',
-    {body: d.body || '', icon: '/app-icon.svg', badge: '/app-icon.svg', data: {url: d.url || '/app'}}));
+  try { d = e.data.json(); } catch (_) { d = {title: 'TiDy Charge', body: e.data ? e.data.text() : ''}; }
+  e.waitUntil(self.registration.showNotification(d.title || 'TiDy Charge',
+    {body: d.body || '', icon: '/static/icon-192.png', badge: '/static/mark-96.png', data: {url: d.url || '/app'}}));
 });
 self.addEventListener('notificationclick', e => {
   e.notification.close();
@@ -354,7 +357,9 @@ async def service_worker():
 
 
 # Verzija u URL-u (/app.js?v=...) da CDN/preglednik nakon nadogradnje odmah uzme novu skriptu.
-ASSET_VERSION = hashlib.sha256((APP_JS + SW).encode()).hexdigest()[:10]
+_static = Path(__file__).parent / "static"
+ASSET_VERSION = hashlib.sha256((APP_JS + SW + MANIFEST).encode()
+                               + b"".join(p.read_bytes() for p in sorted(_static.glob("*")))).hexdigest()[:10]
 templates.env.globals["ASSET_VERSION"] = ASSET_VERSION
 
 
