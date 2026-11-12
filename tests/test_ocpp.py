@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from csms import config
-from csms.db import RfidCard, Station, Transaction, User, session_scope
+from csms.db import Organization, RfidCard, Station, StationAccess, Transaction, User, session_scope
 from csms.ocpp_server import run_ocpp_servers
 from csms.security import CA_CERT, hash_password
 
@@ -22,10 +22,15 @@ WSS = f"wss://localhost:{config.OCPP_WSS_PORT}/ocpp"
 @pytest.fixture(scope="module", autouse=True)
 def server():
     with session_scope() as s:
-        u = User(email="e2e@test.hr", password_hash=hash_password("lozinka12345")); s.add(u); s.flush()
+        org = Organization(name="E2E d.o.o."); s.add(org); s.flush()
+        u = User(email="e2e@test.hr", password_hash=hash_password("lozinka12345"), organization_id=org.id)
+        s.add(u); s.flush()
         s.add(RfidCard(uid="04E2E0001", user_id=u.id))
-        for cp, prof in [("E-16", 1), ("E-201", 2), ("E-21", 2), ("E-MTLS", 2)]:
-            s.add(Station(charge_point_id=cp, security_profile=prof, password_hash=hash_password(PW), approved=True))
+        for cp, prof in [("E-16", 1), ("E-201", 2), ("E-21", 2), ("E-MTLS", 2), ("E-PRIV", 1)]:
+            st = Station(charge_point_id=cp, security_profile=prof, password_hash=hash_password(PW), approved=True)
+            s.add(st); s.flush()
+            if cp != "E-PRIV":
+                s.add(StationAccess(station_id=st.id, organization_id=org.id))
     loop = asyncio.new_event_loop()
     started = threading.Event()
 
@@ -99,6 +104,26 @@ def test_unknown_card_rejected():
     assert "Authorize: Invalid" in out
 
 
+def test_card_without_access_rejected():
+    """Kartica je valjana, ali njena organizacija nema dozvolu za ovu punionicu."""
+    code, out = sim("--id", "E-PRIV", "--password", PW, "--url", WS)
+    assert "Authorize: Invalid" in out
+
+
+def test_access_price_override():
+    with session_scope() as s:
+        st = s.query(Station).filter_by(charge_point_id="E-16").one()
+        s.query(StationAccess).filter_by(station_id=st.id).one().price_per_kwh = 0.0
+    code, out = sim("--id", "E-16", "--password", PW, "--url", WS)
+    assert code == 0, out
+    assert last_tx("E-16") == (11.0, 0.0, True)
+    with session_scope() as s:
+        st = s.query(Station).filter_by(charge_point_id="E-16").one()
+        s.query(StationAccess).filter_by(station_id=st.id).one().price_per_kwh = None
+        tx = s.query(Transaction).filter_by(station_id=st.id).order_by(Transaction.id.desc()).first()
+        assert tx.organization_id is not None
+
+
 def test_proxy_tls_headers(monkeypatch):
     """Iza Caddyja: TLS i klijentski certifikat dolaze kroz zaglavlja proxyja."""
     from types import SimpleNamespace
@@ -113,6 +138,10 @@ def test_proxy_tls_headers(monkeypatch):
     assert not ocpp_server.check_access(conn, req(**{"X-Forwarded-Proto": "https",
                                                      "X-Client-Cert-Subject": "CN=E-MTLS"}))[0]
     monkeypatch.setattr(config, "TRUST_PROXY_TLS", True)
+    monkeypatch.setattr(config, "TRUST_PROXY_CLIENT_CERT", False)  # npr. Cloudflare: zaglavlje se ignorira
+    assert not ocpp_server.check_access(conn, req(**{"X-Forwarded-Proto": "https",
+                                                     "X-Client-Cert-Subject": "CN=E-MTLS"}))[0]
+    monkeypatch.setattr(config, "TRUST_PROXY_CLIENT_CERT", True)
     assert ocpp_server.check_access(conn, req(**{"X-Forwarded-Proto": "https",
                                                  "X-Client-Cert-Subject": "CN=E-MTLS,O=Sim"}))[0]
     assert not ocpp_server.check_access(conn, req(**{"X-Forwarded-Proto": "https",

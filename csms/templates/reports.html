@@ -1,6 +1,14 @@
 {% extends "base.html" %}{% block content %}
 <h1>Izvještaj potrošnje</h1>
-<div class="card"><form class="row" method="get"><label>Od<input type="date" name="date_from" value="{{ date_from }}"></label><label>Do<input type="date" name="date_to" value="{{ date_to }}"></label><button>Prikaži</button></form></div>
+<div class="card"><form class="row" method="get"><label>Od<input type="date" name="date_from" value="{{ date_from }}"></label><label>Do<input type="date" name="date_to" value="{{ date_to }}"></label><button>Prikaži</button></form>
+<form class="row" method="get" action="/reports/pdf" style="margin-top:12px"><label>Mjesečni obračun (PDF)<input type="month" name="month" value="{{ date_from[:7] }}" required></label>
+{% if user.is_admin %}<label>Organizacija<select name="org_id"><option value="">Sve</option>{% for o in orgs %}<option value="{{ o.id }}">{{ o.name }}</option>{% endfor %}</select></label>{% endif %}
+{% if user.is_manager %}<label>Korisnik<select name="user_id"><option value="">{{ 'Cijela organizacija' if not user.is_admin else 'Svi' }}</option>{% for u in users %}<option value="{{ u.id }}">{{ u.name or u.email }}</option>{% endfor %}</select></label>{% endif %}
+<button class="sec">📄 Preuzmi PDF</button></form></div>
+{% if by_org %}<div class="card"><h2>Po organizaciji</h2><table><tr><th>Organizacija</th><th class="n">Punjenja</th><th class="n">kWh</th><th class="n">EUR</th><th></th></tr>
+{% for oid,name,wh,eur,n in by_org %}<tr><td>{{ name or 'Bez organizacije' }}</td><td class="n">{{ n }}</td><td class="n">{{ '%.2f'|format((wh or 0)/1000) }}</td><td class="n">{{ '%.2f'|format(eur or 0) }}</td><td>{% if oid %}<a href="/orgs/{{ oid }}">organizacija</a>{% endif %}</td></tr>{% endfor %}</table></div>{% endif %}
+{% if by_station %}<div class="card"><h2>Po punionici</h2><table><tr><th>Punionica</th><th class="n">Punjenja</th><th class="n">kWh</th><th class="n">EUR</th></tr>
+{% for sid,name,cp,wh,eur,n in by_station %}<tr><td>{{ name or cp }}</td><td class="n">{{ n }}</td><td class="n">{{ '%.2f'|format((wh or 0)/1000) }}</td><td class="n">{{ '%.2f'|format(eur or 0) }}</td></tr>{% endfor %}</table></div>{% endif %}
 <div class="card"><h2>Po korisniku</h2><table><tr><th>Korisnik</th><th class="n">Punjenja</th><th class="n">kWh</th><th class="n">EUR</th><th></th></tr>
 {% for uid,name,email,wh,eur,n in by_user %}<tr><td>{{ name or email or 'Nepoznat (kartica bez korisnika)' }}</td><td class="n">{{ n }}</td><td class="n">{{ '%.2f'|format((wh or 0)/1000) }}</td><td class="n">{{ '%.2f'|format(eur or 0) }}</td>
 <td>{% if uid %}<a href="/sessions?user_id={{ uid }}&date_from={{ date_from }}&date_to={{ date_to }}">detalji</a>{% endif %}</td></tr>{% else %}<tr><td colspan="5" class="muted">Nema podataka.</td></tr>{% endfor %}</table></div>

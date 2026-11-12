@@ -14,6 +14,11 @@ from ..security import ca_pem, sign_station_csr
 from ..vendors import VENDOR_PROFILES, guess_profile
 
 
+def v16_status(status: str) -> str:
+    """OCPP 1.6 nema statusa NotAtThisLocation (kartica bez dozvole za punionicu)."""
+    return status if status in ("Accepted", "Blocked", "Expired", "Invalid", "ConcurrentTx") else "Invalid"
+
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -64,13 +69,13 @@ class ChargePoint16(CP16):
 
     @on("Authorize")
     async def on_authorize(self, id_tag, **kw):
-        res = services.authorize_tag(id_tag) if self.approved else services.AuthResult("Invalid")
-        return call_result.Authorize(id_tag_info={"status": res.status})
+        res = services.authorize_tag(id_tag, self.id) if self.approved else services.AuthResult("Invalid")
+        return call_result.Authorize(id_tag_info={"status": v16_status(res.status)})
 
     @on("StartTransaction")
     async def on_start(self, connector_id, id_tag, meter_start, timestamp, **kw):
         tx, auth = services.start_transaction(self.id, connector_id, id_tag, float(meter_start), timestamp)
-        status = auth.status if self.approved else "Invalid"
+        status = v16_status(auth.status) if self.approved else "Invalid"
         return call_result.StartTransaction(transaction_id=tx.id, id_tag_info={"status": status})
 
     @on("MeterValues")
@@ -92,7 +97,7 @@ class ChargePoint16(CP16):
                 services.update_transaction(tx.id, e, p)
             services.stop_transaction(tx.id, float(meter_stop), timestamp, kw.get("reason", ""))
         id_tag = kw.get("id_tag")
-        info = {"status": services.authorize_tag(id_tag).status} if id_tag else None
+        info = {"status": v16_status(services.authorize_tag(id_tag).status)} if id_tag else None
         return call_result.StopTransaction(id_tag_info=info)
 
     @on("DataTransfer")

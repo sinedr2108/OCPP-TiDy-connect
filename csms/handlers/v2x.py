@@ -34,7 +34,7 @@ class V2xMixin:
             return None
         if id_token.get("type") in ("NoAuthorization",):
             return {"status": "Accepted"}
-        status = services.authorize_tag(id_token["id_token"]).status if self.approved else "Invalid"
+        status = services.authorize_tag(id_token["id_token"], self.id).status if self.approved else "Invalid"
         return {"status": status}
 
     @on("BootNotification")
@@ -78,6 +78,8 @@ class V2xMixin:
             evse = (kw.get("evse") or {}).get("id", 1)
             tx, _ = services.start_transaction(self.id, evse, tag, energy, timestamp, ocpp_tx_id=tx_id)
         services.update_transaction(tx.id, energy, power, tag or None)
+        if event_type != "Ended" and transaction_info.get("charging_state") == "SuspendedEV":
+            services.mark_vehicle_full(tx.id)
         if event_type == "Ended":
             tx = services.stop_transaction(tx.id, energy, timestamp, transaction_info.get("stopped_reason", ""))
         else:

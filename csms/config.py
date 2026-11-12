@@ -2,6 +2,22 @@
 import os
 from pathlib import Path
 
+
+def _load_dotenv(path: Path) -> None:
+    """Učitaj .env (KLJUČ=vrijednost) iz radne mape; postojeće varijable okruženja imaju prednost.
+    Korisno na Windowsu bez Dockera (Scheduled Task / servis)."""
+    if not path.is_file():
+        return
+    for line in path.read_text(encoding="utf-8-sig").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+
+
+_load_dotenv(Path(os.getenv("CSMS_ENV_FILE", ".env")))
+
 DATA_DIR = Path(os.getenv("CSMS_DATA_DIR", "./data")).resolve()
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -29,6 +45,10 @@ TLS_KEY_FILE = os.getenv("CSMS_TLS_KEY_FILE")
 # Iza reverse proxyja (Caddy) koji radi TLS: vjeruj zaglavljima X-Forwarded-Proto i
 # X-Client-Cert-Subject. Uključi SAMO ako OCPP port nije javno dostupan mimo proxyja!
 TRUST_PROXY_TLS = os.getenv("CSMS_TRUST_PROXY_TLS", "0") == "1"
+# Klijentski certifikat (profil 3) iz zaglavlja X-Client-Cert-Subject: uključi SAMO iza proxyja koji to
+# zaglavlje sam postavlja i prepisuje (naš Caddy). Iza Cloudflare tunela mora ostati 0, jer bi ga
+# napadač mogao poslati sam; profil 3 tada nije moguć.
+TRUST_PROXY_CLIENT_CERT = os.getenv("CSMS_TRUST_PROXY_CLIENT_CERT", "0") == "1"
 
 # Nepoznate punionice: automatski ih upiši kao "pending" (admin ih odobrava)
 AUTO_REGISTER_UNKNOWN = os.getenv("CSMS_AUTO_REGISTER", "1") == "1"
@@ -39,3 +59,20 @@ DEFAULT_PRICE_EUR_PER_KWH = float(os.getenv("CSMS_DEFAULT_PRICE", "0.35"))
 # Prvi administrator (kreira se samo ako nema korisnika)
 ADMIN_EMAIL = os.getenv("CSMS_ADMIN_EMAIL", "admin@example.com")
 ADMIN_PASSWORD = os.getenv("CSMS_ADMIN_PASSWORD", "admin12345")
+
+# Vremenska zona za prikaz i obračun (baza sprema UTC)
+TIMEZONE = os.getenv("CSMS_TIMEZONE", "Europe/Zagreb")
+
+# Javni URL web sučelja (za poveznice u e-mailovima), npr. https://ocpp.tvrtka.hr
+PUBLIC_BASE_URL = os.getenv("CSMS_PUBLIC_BASE_URL", f"https://{PUBLIC_HOSTNAME}").rstrip("/")
+
+# E-mail obavijesti (ako SMTP_HOST nije zadan, e-mailovi se ne šalju)
+SMTP_HOST = os.getenv("CSMS_SMTP_HOST", "")
+SMTP_PORT = int(os.getenv("CSMS_SMTP_PORT", "587"))
+SMTP_USER = os.getenv("CSMS_SMTP_USER", "")
+SMTP_PASSWORD = os.getenv("CSMS_SMTP_PASSWORD", "")
+SMTP_FROM = os.getenv("CSMS_SMTP_FROM", SMTP_USER or f"noreply@{PUBLIC_HOSTNAME}")
+SMTP_TLS = os.getenv("CSMS_SMTP_TLS", "starttls")  # starttls | ssl | none
+
+# Web Push (obavijesti na mobitel): ključevi se generiraju automatski u DATA_DIR
+VAPID_SUBJECT = os.getenv("CSMS_VAPID_SUBJECT", f"mailto:{ADMIN_EMAIL}")

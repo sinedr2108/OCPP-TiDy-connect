@@ -5,3 +5,4 @@ certs/
 .env
 .pytest_cache/
 .venv/
+backup/

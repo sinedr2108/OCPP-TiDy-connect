@@ -77,7 +77,7 @@ def new_totp_secret() -> str:
 
 
 def totp_uri(secret: str, email: str) -> str:
-    return pyotp.TOTP(secret).provisioning_uri(name=email, issuer_name="OCPP Charge")
+    return pyotp.TOTP(secret).provisioning_uri(name=email, issuer_name="TiDy Charge")
 
 
 def verify_totp(secret: str | None, code: str) -> bool:

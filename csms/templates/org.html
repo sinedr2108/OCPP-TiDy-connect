@@ -1,0 +1,25 @@
+{% extends "base.html" %}{% block content %}
+<p><a href="/orgs">← Organizacije</a></p>
+<h1>{{ o.name }} <span class="pill">{{ o.kind_label }}</span>{% if not o.active %} <span class="pill off">neaktivna</span>{% endif %}</h1>
+<div class="grid"><div class="card stat"><div class="l">Ovaj mjesec</div><div class="v">{{ '%.2f'|format(month.kwh) }} kWh</div><div class="l">{{ '%.2f'|format(month.eur) }} € · {{ month.count }} punjenja</div></div>
+<div class="card"><h2>Mjesečni obračun</h2><form method="get" action="/reports/pdf" class="row"><input type="hidden" name="org_id" value="{{ o.id }}"><input type="month" name="month" required value="{{ this_month }}"><button class="sec">📄 PDF</button></form></div></div>
+<div class="card"><h2>Podaci</h2><form method="post" action="/orgs/{{ o.id }}" class="row"><input type="hidden" name="csrf" value="{{ csrf }}">
+<label>Naziv<input name="name" value="{{ o.name }}" required></label>
+<label>Vrsta<select name="kind">{% for k,l in ORG_KINDS.items() %}<option value="{{ k }}" {{ 'selected' if o.kind==k }}>{{ l }}</option>{% endfor %}</select></label>
+<label>Adresa<input name="address" value="{{ o.address }}"></label><label>Kontakt<input name="contact" value="{{ o.contact }}"></label>
+<label><span><input type="checkbox" name="active" value="1" {{ 'checked' if o.active }}> aktivna (neaktivnoj se odbijaju sve kartice)</span></label><button>Spremi</button></form></div>
+
+<div class="card"><h2>Punionice koje smiju koristiti</h2><table><tr><th>Punionica</th><th>Cijena EUR/kWh</th><th></th></tr>
+{% for g in grants %}<tr><td><a href="/stations/{{ g.station.id }}">{{ g.station.name or g.station.charge_point_id }}</a></td><td>{{ '%.4f'|format(g.price_per_kwh) if g.price_per_kwh is not none else 'cijena punionice' }}</td>
+<td><form class="inline" method="post" action="/access/{{ g.id }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/orgs/{{ o.id }}"><button class="sec">Ukloni</button></form></td></tr>
+{% else %}<tr><td colspan="3" class="muted">Nema dozvola. Korisnici ove organizacije ne vide nijednu punionicu.</td></tr>{% endfor %}</table>
+<form method="post" action="/orgs/{{ o.id }}/access" class="row" style="margin-top:12px"><input type="hidden" name="csrf" value="{{ csrf }}">
+<label>Punionica<select name="station_id" required>{% for st in all_stations %}<option value="{{ st.id }}">{{ st.name or st.charge_point_id }}</option>{% endfor %}</select></label>
+<label>Cijena EUR/kWh (prazno = cijena punionice, 0 = besplatno)<input name="price_per_kwh"></label><button>Dodaj dozvolu</button></form></div>
+
+<div class="card"><h2>Montirane punionice (lokacija ove organizacije)</h2>{% for st in owned %}<a class="pill" href="/stations/{{ st.id }}">{{ st.name or st.charge_point_id }}</a> {% else %}<span class="muted">Nema.</span>{% endfor %}
+<p class="muted">Administrator organizacije vidi sva punjenja na ovim punionicama, uključujući goste.</p></div>
+
+<div class="card"><h2>Korisnici</h2><table><tr><th>Ime</th><th>E-mail</th><th>Uloga</th></tr>
+{% for u in members %}<tr><td>{{ u.name }}</td><td>{{ u.email }}</td><td>{{ 'administrator organizacije' if u.org_role == 'admin' else 'korisnik' }}</td></tr>{% else %}<tr><td colspan="3" class="muted">Nema korisnika. Dodaj ih u izborniku Korisnici.</td></tr>{% endfor %}</table></div>
+{% endblock %}
