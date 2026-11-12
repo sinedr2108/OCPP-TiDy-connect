@@ -45,11 +45,16 @@ async def app_home(request: Request, user: User = Depends(current_user)):
         cards = s.query(RfidCard).filter_by(user_id=user.id, app_token=False).order_by(RfidCard.uid).all()
         org = org_name(s, user)
         push_count = s.query(PushSubscription).filter_by(user_id=user.id).count()
+        learn = services.card_learning_for(user.id)
+        learn_name = None
+        if learn:
+            lst = s.query(Station).filter_by(charge_point_id=learn[0]).one_or_none()
+            learn_name = (lst.name or lst.charge_point_id) if lst else learn[0]
     from .timeutil import current_month
     y, m = current_month()
     prev = f"{y - (m == 1)}-{(m - 2) % 12 + 1:02d}"
     return render(request, "app.html", user, active=active, month=month, recent=recent, stations=stations,
-                  cards=cards, org=org, push_count=push_count, this_month=f"{y}-{m:02d}", prev_month=prev)
+                  cards=cards, org=org, push_count=push_count, learn_name=learn_name, this_month=f"{y}-{m:02d}", prev_month=prev)
 
 
 @app.get("/app/station/{sid}", response_class=HTMLResponse)
@@ -111,25 +116,37 @@ async def app_card_link(request: Request, uid: str = Form(...), label: str = For
                         user: User = Depends(current_user)):
     """Korisnik sam veže svoju RFID karticu na račun (UID je otisnut na kartici ili ga vidi admin)."""
     tag = normalize_id_tag(uid)
-    if not tag or len(tag) > 36 or tag.startswith("APP"):
-        flash(request, "Neispravan broj kartice.")
-        return RedirectResponse("/app#kartice", 303)
     with session_scope() as s:
-        card = s.query(RfidCard).filter_by(uid=tag).one_or_none()
-        if card is None:
-            s.add(RfidCard(uid=tag, label=label or "Moja kartica", user_id=user.id,
-                           organization_id=user.organization_id))
-            msg = f"Kartica {tag} je vezana na tvoj račun."
-        elif card.user_id is None and card.organization_id in (None, user.organization_id) and card.active:
-            card.user_id = user.id
-            card.organization_id = card.organization_id or user.organization_id
-            msg = f"Kartica {tag} je vezana na tvoj račun."
-        elif card.user_id == user.id:
-            msg = "Ta kartica je već tvoja."
-        else:
-            msg = "Tu karticu nije moguće vezati. Javi se administratoru."
+        _, msg = services.link_card(s, s.get(User, user.id), tag, label)
         log_event(s, "app", "card_link", f"{tag} by {user.email}: {msg}")
     flash(request, msg)
+    return RedirectResponse("/app#kartice", 303)
+
+
+@app.post("/app/cards/learn", dependencies=[Depends(check_csrf)])
+async def app_card_learn(request: Request, station_id: int = Form(0), cancel: str = Form(""),
+                         user: User = Depends(current_user)):
+    """Dodavanje kartice prislanjanjem na punionicu: radi s bilo kojim mobitelom i bilo kojom karticom."""
+    if cancel:
+        services.cancel_card_learning(user.id)
+        return RedirectResponse("/app#kartice", 303)
+    with session_scope() as s:
+        st = s.get(Station, station_id)
+        if st is None or not services.user_can_use(s, station_id, user):
+            raise HTTPException(403)
+        cp_id, name = st.charge_point_id, st.name or st.charge_point_id
+    if cp_id not in ocpp_server.CONNECTED:
+        flash(request, "Ta punionica trenutno nije spojena na sustav.")
+        return RedirectResponse("/app#kartice", 303)
+    other = services.CARD_LEARN.get(cp_id)
+    if other and other[0] != user.id and other[1] > services.utcnow():
+        flash(request, "Netko drugi upravo dodaje karticu na toj punionici. Pokušaj za dvije minute.")
+        return RedirectResponse("/app#kartice", 303)
+    services.cancel_card_learning(user.id)
+    services.start_card_learning(cp_id, user.id)
+    with session_scope() as s:
+        log_event(s, cp_id, "card_learn_started", f"by {user.email}")
+    flash(request, f"Prisloni karticu na punionicu „{name}” u iduće dvije minute.")
     return RedirectResponse("/app#kartice", 303)
 
 
@@ -245,6 +262,40 @@ document.querySelectorAll('[data-confirm]').forEach(f => f.addEventListener('sub
   if (!confirm(f.dataset.confirm)) e.preventDefault();
 }));
 document.querySelectorAll('select[data-autosubmit]').forEach(s => s.addEventListener('change', () => s.form.submit()));
+
+// Skeniranje RFID kartice mobitelom (Web NFC: Chrome na Androidu)
+const nfcBtn = document.getElementById('nfc-scan');
+const nfcInfo = document.getElementById('nfc-info');
+if (nfcBtn) {
+  if (!('NDEFReader' in window)) {
+    nfcBtn.hidden = true;
+    nfcInfo.textContent = 'Skeniranje mobitelom radi u Chromeu na Androidu. Na iPhoneu koristi prislanjanje na punionicu ili ručni upis.';
+  }
+  nfcBtn.addEventListener('click', async () => {
+    try {
+      const reader = new NDEFReader();
+      const ctrl = new AbortController();
+      await reader.scan({signal: ctrl.signal});
+      nfcInfo.textContent = 'Prisloni karticu na poleđinu mobitela…';
+      const done = e => {
+        if (!e.serialNumber) { nfcInfo.textContent = 'Kartica nema čitljiv broj. Koristi prislanjanje na punionicu.'; return; }
+        ctrl.abort();
+        const form = document.getElementById('card-form');
+        form.querySelector('[name=uid]').value = e.serialNumber.replace(/[^0-9a-fA-F]/g, '').toUpperCase();
+        nfcInfo.textContent = 'Očitano: ' + form.querySelector('[name=uid]').value + '. Provjeri i pritisni „Veži karticu”.';
+        form.querySelector('[name=label]').focus();
+      };
+      reader.onreading = done;
+      reader.onreadingerror = () => { nfcInfo.textContent = 'Karticu nije moguće očitati mobitelom. Koristi prislanjanje na punionicu.'; };
+    } catch (e) { nfcInfo.textContent = 'NFC nije dostupan: ' + e.message; }
+  });
+}
+const revBtn = document.getElementById('uid-reverse');
+if (revBtn) revBtn.addEventListener('click', () => {
+  const inp = document.querySelector('#card-form [name=uid]');
+  const hex = inp.value.replace(/[^0-9a-fA-F]/g, '').toUpperCase();
+  if (hex.length % 2 === 0) inp.value = hex.match(/../g).reverse().join('');
+});
 
 // Obavijesti na mobitel (Web Push)
 const pushBtn = document.getElementById('push-enable');

@@ -165,3 +165,35 @@ def test_pwa_assets():
     assert c.get("/manifest.webmanifest").json()["start_url"] == "/app"
     assert "serviceWorker" in c.get("/app.js").text
     assert c.get("/sw.js").status_code == 200
+
+
+def test_card_learning_by_tapping_on_station(monkeypatch):
+    from csms import ocpp_server
+    monkeypatch.setitem(ocpp_server.CONNECTED, "MT-A", object())
+    c = login("a-emp@test.hr")
+    tok = csrf(c, "/app")
+    # punionica za koju nema dozvolu
+    assert c.post("/app/cards/learn", data={"station_id": IDS["st_h"], "csrf": tok}).status_code == 403
+    c.post("/app/cards/learn", data={"station_id": IDS["st_a"], "csrf": tok})
+    assert "Čekam karticu" in c.get("/app").text
+    # tuđa postojeća kartica se ne može preoteti
+    assert services.authorize_tag("MTGUEST1", "MT-A").user_id == IDS["guest"]
+    # nepoznata kartica prislonjena na tu punionicu veže se na korisnika i odmah je prihvaćena
+    res = services.authorize_tag("de:ad:be:ef", "MT-A")
+    assert res.status == "Accepted" and res.user_id == IDS["a_emp"]
+    assert "DEADBEEF" in c.get("/app").text and "Čekam karticu" not in c.get("/app").text
+    # učenje je jednokratno: sljedeća nepoznata kartica se odbija
+    assert services.authorize_tag("0BADF00D", "MT-A").status == "Invalid"
+    # isteklo učenje ne veže karticu
+    c.post("/app/cards/learn", data={"station_id": IDS["st_a"], "csrf": tok})
+    services.CARD_LEARN["MT-A"] = (IDS["a_emp"], services.utcnow().replace(year=2000))
+    assert services.authorize_tag("0BADF00E", "MT-A").status == "Invalid"
+    # odustajanje
+    c.post("/app/cards/learn", data={"station_id": IDS["st_a"], "csrf": tok})
+    c.post("/app/cards/learn", data={"cancel": "1", "csrf": tok})
+    assert services.card_learning_for(IDS["a_emp"]) is None
+
+
+def test_nfc_scan_ui_present():
+    c = login("a-emp@test.hr")
+    assert 'id="nfc-scan"' in c.get("/app").text and "NDEFReader" in c.get("/app.js").text

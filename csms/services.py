@@ -49,9 +49,79 @@ def allowed_station_ids(s, user: User) -> set[int] | None:
     return ids
 
 
+# Učenje kartice prislanjanjem: {charge_point_id: (user_id, vrijedi_do)}. Korisnik u aplikaciji odabere
+# punionicu, a prva nepoznata (ili nedodijeljena) kartica prislonjena u tom roku veže se na njegov račun.
+# Tako se sprema točno onaj zapis UID-a koji ta punionica šalje (neke šalju obrnuti redoslijed bajtova).
+CARD_LEARN: dict[str, tuple[int, datetime]] = {}
+CARD_LEARN_SECONDS = 120
+
+
+def start_card_learning(cp_id: str, user_id: int) -> datetime:
+    from datetime import timedelta
+    until = utcnow() + timedelta(seconds=CARD_LEARN_SECONDS)
+    CARD_LEARN[cp_id] = (user_id, until)
+    return until
+
+
+def card_learning_for(user_id: int) -> tuple[str, datetime] | None:
+    """Punionica na kojoj korisnik trenutno čeka karticu."""
+    for cp_id, (uid, until) in list(CARD_LEARN.items()):
+        if until < utcnow():
+            CARD_LEARN.pop(cp_id, None)
+        elif uid == user_id:
+            return cp_id, until
+    return None
+
+
+def cancel_card_learning(user_id: int) -> None:
+    for cp_id, (uid, _) in list(CARD_LEARN.items()):
+        if uid == user_id:
+            CARD_LEARN.pop(cp_id, None)
+
+
+def link_card(s, user: User, tag: str, label: str = "") -> tuple[bool, str]:
+    """Veži karticu na korisnika ako je nova ili nedodijeljena (u njegovoj organizaciji). Vraća (uspjeh, poruka)."""
+    if not tag or len(tag) > 36 or tag.startswith("APP"):
+        return False, "Neispravan broj kartice."
+    card = s.query(RfidCard).filter_by(uid=tag).one_or_none()
+    if card is None:
+        s.add(RfidCard(uid=tag, label=label or "Moja kartica", user_id=user.id,
+                       organization_id=user.organization_id))
+    elif card.user_id == user.id:
+        return True, "Ta kartica je već tvoja."
+    elif card.user_id is None and card.organization_id in (None, user.organization_id) and card.active:
+        card.user_id = user.id
+        card.organization_id = card.organization_id or user.organization_id
+        if label:
+            card.label = label
+    else:
+        return False, "Tu karticu nije moguće vezati. Javi se administratoru."
+    s.flush()
+    return True, f"Kartica {tag} je vezana na tvoj račun."
+
+
+def _learn_card(tag: str, cp_id: str | None) -> None:
+    pending = CARD_LEARN.get(cp_id or "")
+    if not pending:
+        return
+    user_id, until = pending
+    if until < utcnow():
+        CARD_LEARN.pop(cp_id, None)
+        return
+    with session_scope() as s:
+        user = s.get(User, user_id)
+        if user is None or not user.active:
+            return
+        ok, msg = link_card(s, user, tag, "Kartica (prislonjena)")
+        log_event(s, cp_id, "card_learned" if ok else "card_learn_failed", f"{tag} -> {user.email}: {msg}")
+        if ok:
+            CARD_LEARN.pop(cp_id, None)
+
+
 def authorize_tag(raw_tag: str, cp_id: str | None = None) -> AuthResult:
     """Provjeri karticu; ako je zadana punionica, provjeri i dozvolu za nju."""
     tag = normalize_id_tag(raw_tag)
+    _learn_card(tag, cp_id)
     with session_scope() as s:
         card = s.query(RfidCard).filter_by(uid=tag).one_or_none()
         if card is None:
