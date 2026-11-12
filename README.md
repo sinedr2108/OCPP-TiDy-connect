@@ -48,6 +48,8 @@ Jedna instalacija služi svim mjestima gdje su montirane punionice: tvrtkama, ku
 
 ## Pokretanje
 
+☁️ **Windows Server + Cloudflare Tunnel (bez Dockera): [docs/CLOUDFLARE-WINDOWS.md](docs/CLOUDFLARE-WINDOWS.md)**
+
 📘 **Detaljne upute korak po korak (server, HTTPS, prva proba, spajanje punionica, backup): [docs/INSTALACIJA.md](docs/INSTALACIJA.md)**
 
 🪟 **Windows Server 2025:** [docs/WINDOWS-SERVER.md](docs/WINDOWS-SERVER.md) (Ubuntu virtualka u Hyper-V-u)

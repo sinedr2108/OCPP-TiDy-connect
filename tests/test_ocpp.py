@@ -138,6 +138,10 @@ def test_proxy_tls_headers(monkeypatch):
     assert not ocpp_server.check_access(conn, req(**{"X-Forwarded-Proto": "https",
                                                      "X-Client-Cert-Subject": "CN=E-MTLS"}))[0]
     monkeypatch.setattr(config, "TRUST_PROXY_TLS", True)
+    monkeypatch.setattr(config, "TRUST_PROXY_CLIENT_CERT", False)  # npr. Cloudflare: zaglavlje se ignorira
+    assert not ocpp_server.check_access(conn, req(**{"X-Forwarded-Proto": "https",
+                                                     "X-Client-Cert-Subject": "CN=E-MTLS"}))[0]
+    monkeypatch.setattr(config, "TRUST_PROXY_CLIENT_CERT", True)
     assert ocpp_server.check_access(conn, req(**{"X-Forwarded-Proto": "https",
                                                  "X-Client-Cert-Subject": "CN=E-MTLS,O=Sim"}))[0]
     assert not ocpp_server.check_access(conn, req(**{"X-Forwarded-Proto": "https",

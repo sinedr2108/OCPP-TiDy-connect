@@ -7,6 +7,7 @@ services:
     env_file: .env
     environment:
       CSMS_TRUST_PROXY_TLS: "1"
+      CSMS_TRUST_PROXY_CLIENT_CERT: "1"
       CSMS_COOKIE_SECURE: "1"
       CSMS_PUBLIC_WS_URL: "wss://${CSMS_PUBLIC_HOSTNAME}/ocpp"
       CSMS_PUBLIC_WSS_URL: "wss://${CSMS_PUBLIC_HOSTNAME}/ocpp"
