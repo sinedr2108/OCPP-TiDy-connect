@@ -50,6 +50,8 @@ class User(Base):
     totp_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)
     mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+    notify_email: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    notify_push: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
     failed_logins: Mapped[int] = mapped_column(Integer, default=0)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
@@ -154,6 +156,7 @@ class Transaction(Base):
     price_per_kwh: Mapped[float] = mapped_column(Float, default=0)
     cost_eur: Mapped[float] = mapped_column(Float, default=0)
     stop_reason: Mapped[str] = mapped_column(String(50), default="")
+    notified_full: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")  # "vozilo napunjeno" poslano
     active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
 
     station: Mapped[Station] = relationship()
@@ -163,6 +166,17 @@ class Transaction(Base):
     @property
     def energy_kwh(self) -> float:
         return round(self.energy_wh / 1000.0, 3)
+
+
+class PushSubscription(Base):
+    """Web Push pretplata preglednika/mobitela korisnika."""
+    __tablename__ = "push_subscriptions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    endpoint: Mapped[str] = mapped_column(String(1000), unique=True)
+    p256dh: Mapped[str] = mapped_column(String(200))
+    auth: Mapped[str] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
 class Setting(Base):

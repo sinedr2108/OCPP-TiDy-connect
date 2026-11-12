@@ -39,3 +39,20 @@ DEFAULT_PRICE_EUR_PER_KWH = float(os.getenv("CSMS_DEFAULT_PRICE", "0.35"))
 # Prvi administrator (kreira se samo ako nema korisnika)
 ADMIN_EMAIL = os.getenv("CSMS_ADMIN_EMAIL", "admin@example.com")
 ADMIN_PASSWORD = os.getenv("CSMS_ADMIN_PASSWORD", "admin12345")
+
+# Vremenska zona za prikaz i obračun (baza sprema UTC)
+TIMEZONE = os.getenv("CSMS_TIMEZONE", "Europe/Zagreb")
+
+# Javni URL web sučelja (za poveznice u e-mailovima), npr. https://ocpp.tvrtka.hr
+PUBLIC_BASE_URL = os.getenv("CSMS_PUBLIC_BASE_URL", f"https://{PUBLIC_HOSTNAME}").rstrip("/")
+
+# E-mail obavijesti (ako SMTP_HOST nije zadan, e-mailovi se ne šalju)
+SMTP_HOST = os.getenv("CSMS_SMTP_HOST", "")
+SMTP_PORT = int(os.getenv("CSMS_SMTP_PORT", "587"))
+SMTP_USER = os.getenv("CSMS_SMTP_USER", "")
+SMTP_PASSWORD = os.getenv("CSMS_SMTP_PASSWORD", "")
+SMTP_FROM = os.getenv("CSMS_SMTP_FROM", SMTP_USER or f"noreply@{PUBLIC_HOSTNAME}")
+SMTP_TLS = os.getenv("CSMS_SMTP_TLS", "starttls")  # starttls | ssl | none
+
+# Web Push (obavijesti na mobitel): ključevi se generiraju automatski u DATA_DIR
+VAPID_SUBJECT = os.getenv("CSMS_VAPID_SUBJECT", f"mailto:{ADMIN_EMAIL}")

@@ -45,5 +45,5 @@
 <select name="profile"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select><button class="sec" {{ 'disabled' if not online }}>Pošalji SecurityProfile</button></form>{% endif %}
 </div>
 <p class="muted">Prelazak na viši profil: 1) instaliraj CA certifikat, 2) za profil 3 zatraži certifikat (CSR) i pričekaj "certificate_signed", 3) promijeni profil ovdje u postavkama, 4) pošalji SecurityProfile punionici (1.6J) ili promijeni NetworkProfile (2.x).</p></div>
-<div class="card"><h2>Događaji</h2><table>{% for e in events %}<tr><td>{{ e.ts.strftime('%d.%m. %H:%M:%S') }}</td><td>{{ e.kind }}</td><td class="mono" style="white-space:normal">{{ e.detail }}</td></tr>{% else %}<tr><td class="muted">Nema događaja.</td></tr>{% endfor %}</table></div>
+<div class="card"><h2>Događaji</h2><table>{% for e in events %}<tr><td>{{ e.ts|dt('%d.%m. %H:%M:%S') }}</td><td>{{ e.kind }}</td><td class="mono" style="white-space:normal">{{ e.detail }}</td></tr>{% else %}<tr><td class="muted">Nema događaja.</td></tr>{% endfor %}</table></div>
 {% endblock %}

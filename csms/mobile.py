@@ -5,10 +5,13 @@ Instalira se s početnog zaslona mobitela (bez App Storea / Google Playa).
 from __future__ import annotations
 
 from fastapi import Depends, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+import secrets
 
-from . import ocpp_server, services
-from .db import ConnectorStatus, RfidCard, Station, Transaction, User, log_event, session_scope
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+
+from . import notify, ocpp_server, services
+from .db import (ConnectorStatus, PushSubscription, RfidCard, Station, Transaction, User, log_event,
+                 session_scope)
 from .vendors import normalize_id_tag
 from .web import (app, check_csrf, current_user, flash, month_start, org_name, render, stations_for,
                   tx_totals)
@@ -41,8 +44,12 @@ async def app_home(request: Request, user: User = Depends(current_user)):
         stations = _station_view(s, user)
         cards = s.query(RfidCard).filter_by(user_id=user.id, app_token=False).order_by(RfidCard.uid).all()
         org = org_name(s, user)
+        push_count = s.query(PushSubscription).filter_by(user_id=user.id).count()
+    from .timeutil import current_month
+    y, m = current_month()
+    prev = f"{y - (m == 1)}-{(m - 2) % 12 + 1:02d}"
     return render(request, "app.html", user, active=active, month=month, recent=recent, stations=stations,
-                  cards=cards, org=org)
+                  cards=cards, org=org, push_count=push_count, this_month=f"{y}-{m:02d}", prev_month=prev)
 
 
 @app.get("/app/station/{sid}", response_class=HTMLResponse)
@@ -139,6 +146,64 @@ async def app_card_block(request: Request, cid: int, user: User = Depends(curren
     return RedirectResponse("/app#kartice", 303)
 
 
+# ----------------------------------------------------------------- obavijesti
+
+def _check_json_csrf(request: Request):
+    if not secrets.compare_digest(request.headers.get("X-CSRF", ""), request.session.get("csrf", "-")):
+        raise HTTPException(403, "CSRF provjera nije prošla")
+
+
+@app.get("/app/push/key")
+async def push_key(user: User = Depends(current_user)):
+    return {"key": notify.vapid_public_key()}
+
+
+@app.post("/app/push/subscribe")
+async def push_subscribe(request: Request, user: User = Depends(current_user)):
+    _check_json_csrf(request)
+    data = await request.json()
+    try:
+        endpoint, keys = str(data["endpoint"]), data["keys"]
+        p256dh, auth = str(keys["p256dh"]), str(keys["auth"])
+        assert endpoint.startswith("https://") and len(endpoint) < 1000
+        assert len(notify.b64u_decode(p256dh)) == 65 and len(notify.b64u_decode(auth)) == 16
+    except Exception:
+        raise HTTPException(400, "Neispravna pretplata")
+    with session_scope() as s:
+        sub = s.query(PushSubscription).filter_by(endpoint=endpoint).one_or_none()
+        if sub is None:
+            s.add(PushSubscription(user_id=user.id, endpoint=endpoint, p256dh=p256dh, auth=auth))
+        else:
+            sub.user_id, sub.p256dh, sub.auth = user.id, p256dh, auth
+        u = s.get(User, user.id)
+        u.notify_push = True
+    return JSONResponse({"ok": True})
+
+
+@app.post("/app/push/unsubscribe")
+async def push_unsubscribe(request: Request, user: User = Depends(current_user)):
+    _check_json_csrf(request)
+    data = await request.json()
+    with session_scope() as s:
+        s.query(PushSubscription).filter_by(user_id=user.id, endpoint=str(data.get("endpoint", ""))).delete()
+    return JSONResponse({"ok": True})
+
+
+@app.post("/app/notifications", dependencies=[Depends(check_csrf)])
+async def notification_settings(request: Request, notify_email: str = Form(""), notify_push: str = Form(""),
+                                test: str = Form(""), user: User = Depends(current_user)):
+    with session_scope() as s:
+        u = s.get(User, user.id)
+        u.notify_email, u.notify_push = bool(notify_email), bool(notify_push)
+    if test:
+        from starlette.concurrency import run_in_threadpool
+        await run_in_threadpool(notify.notify_user, user.id, "Probna obavijest", "Obavijesti o punjenju rade.")
+        flash(request, "Probna obavijest poslana.")
+    else:
+        flash(request, "Postavke obavijesti spremljene.")
+    return RedirectResponse("/app#obavijesti", 303)
+
+
 # ----------------------------------------------------------------- PWA
 
 MANIFEST = """{
@@ -159,6 +224,20 @@ ICON = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect wi
 SW = """self.addEventListener('install', e => self.skipWaiting());
 self.addEventListener('activate', e => self.clients.claim());
 self.addEventListener('fetch', () => {});
+self.addEventListener('push', e => {
+  let d = {};
+  try { d = e.data.json(); } catch (_) { d = {title: 'OCPP Charge', body: e.data ? e.data.text() : ''}; }
+  e.waitUntil(self.registration.showNotification(d.title || 'OCPP Charge',
+    {body: d.body || '', icon: '/app-icon.svg', badge: '/app-icon.svg', data: {url: d.url || '/app'}}));
+});
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || '/app';
+  e.waitUntil(clients.matchAll({type: 'window'}).then(ws => {
+    for (const w of ws) if (w.url.includes(url) && 'focus' in w) return w.focus();
+    return clients.openWindow(url);
+  }));
+});
 """
 
 APP_JS = """if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
@@ -166,6 +245,30 @@ document.querySelectorAll('[data-confirm]').forEach(f => f.addEventListener('sub
   if (!confirm(f.dataset.confirm)) e.preventDefault();
 }));
 document.querySelectorAll('select[data-autosubmit]').forEach(s => s.addEventListener('change', () => s.form.submit()));
+
+// Obavijesti na mobitel (Web Push)
+const pushBtn = document.getElementById('push-enable');
+const pushInfo = document.getElementById('push-info');
+function b64ToBytes(s) {
+  const b = atob((s + '='.repeat((4 - s.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(b, c => c.charCodeAt(0));
+}
+if (pushBtn) {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    pushBtn.disabled = true;
+    pushInfo.textContent = 'Ovaj preglednik ne podržava obavijesti. Na iPhoneu prvo dodaj aplikaciju na početni zaslon (Dijeli → Dodaj na početni zaslon) i otvori je odande.';
+  }
+  pushBtn.addEventListener('click', async () => {
+    try {
+      if (await Notification.requestPermission() !== 'granted') { pushInfo.textContent = 'Obavijesti nisu dozvoljene u pregledniku.'; return; }
+      const reg = await navigator.serviceWorker.ready;
+      const {key} = await (await fetch('/app/push/key')).json();
+      const sub = await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: b64ToBytes(key)});
+      const r = await fetch('/app/push/subscribe', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF': pushBtn.dataset.csrf}, body: JSON.stringify(sub)});
+      pushInfo.textContent = r.ok ? 'Obavijesti su uključene na ovom uređaju.' : 'Greška pri uključivanju obavijesti.';
+    } catch (e) { pushInfo.textContent = 'Greška: ' + e.message; }
+  });
+}
 """
 
 

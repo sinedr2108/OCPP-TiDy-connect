@@ -200,7 +200,20 @@ def stop_transaction(tx_id: int, meter_stop_wh: float | None, ts=None, reason: s
         tx.active = False
         tx.power_w = None
         _recalc(tx)
-        return tx
+    from . import notify
+    notify.session_finished(tx.id)
+    return tx
+
+
+def mark_vehicle_full(tx_id: int) -> None:
+    """Vozilo je prestalo puniti (SuspendedEV) dok je punjenje još aktivno: javi korisniku jednom."""
+    with session_scope() as s:
+        tx = s.get(Transaction, tx_id)
+        if tx is None or not tx.active or tx.notified_full:
+            return
+        tx.notified_full = True
+    from . import notify
+    notify.vehicle_full(tx_id)
 
 
 def set_connector_status(cp_id: str, connector_id: int, status: str, error_code: str = "") -> None:
@@ -215,6 +228,12 @@ def set_connector_status(cp_id: str, connector_id: int, status: str, error_code:
         row.status, row.error_code, row.updated_at = status, error_code or "", utcnow()
         if connector_id == 0:
             st.status = status
+        tx = None
+        if status == "SuspendedEV":
+            tx = (s.query(Transaction).filter_by(station_id=st.id, connector_id=connector_id, active=True)
+                  .order_by(Transaction.id.desc()).first())
+    if tx is not None:
+        mark_vehicle_full(tx.id)
 
 
 def touch_station(cp_id: str, **fields) -> None:

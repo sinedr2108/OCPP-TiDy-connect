@@ -10,5 +10,5 @@
 <div class="card"><table><tr><th>ID</th><th>Naziv</th><th>Montirana kod</th><th>Proizvođač / model</th><th>OCPP</th><th>Profil</th><th>Status</th><th>Zadnje javljanje</th></tr>
 {% for st in rows %}<tr><td class="mono"><a href="{{ '/stations/%d' % st.id if user.is_admin else '/app/station/%d' % st.id }}">{{ st.charge_point_id }}</a></td><td>{{ st.name }}</td><td>{{ orgs.get(st.organization_id, '—') }}</td><td>{{ st.vendor }} {{ st.model }}</td><td>{{ st.ocpp_version }}</td><td>{{ st.security_profile }}</td>
 <td>{% if not st.approved %}<span class="pill off">čeka odobrenje</span>{% elif st.charge_point_id in online %}<span class="pill ok">online</span>{% else %}<span class="pill">offline</span>{% endif %}</td>
-<td>{{ st.last_seen.strftime('%d.%m. %H:%M') if st.last_seen else '—' }}</td></tr>{% else %}<tr><td colspan="8" class="muted">Nema punionica.</td></tr>{% endfor %}</table></div>
+<td>{{ st.last_seen|dt('%d.%m. %H:%M') if st.last_seen else '—' }}</td></tr>{% else %}<tr><td colspan="8" class="muted">Nema punionica.</td></tr>{% endfor %}</table></div>
 {% endblock %}

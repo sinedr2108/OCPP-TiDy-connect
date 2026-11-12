@@ -4,6 +4,6 @@
 <label>Zadana cijena (EUR/kWh, s PDV-om)<input name="price_per_kwh" value="{{ price }}" required></label><button>Spremi</button></form>
 <p class="muted">Cijena se zaključava na početku svakog punjenja. Pojedina punionica može imati vlastitu cijenu.</p></div>
 <div class="card"><h2>PKI</h2><p>Ugrađeni CA potpisuje klijentske certifikate punionica (sigurnosni profil 3). <a href="/pki/ca.crt">Preuzmi CA certifikat</a></p></div>
-<div class="card"><h2>Događaji (zadnjih 100)</h2><table><tr><th>Vrijeme (UTC)</th><th>Izvor</th><th>Vrsta</th><th>Detalji</th></tr>
-{% for e in events %}<tr><td>{{ e.ts.strftime('%d.%m. %H:%M:%S') }}</td><td class="mono">{{ e.source }}</td><td>{{ e.kind }}</td><td class="mono" style="white-space:normal">{{ e.detail }}</td></tr>{% endfor %}</table></div>
+<div class="card"><h2>Događaji (zadnjih 100)</h2><table><tr><th>Vrijeme</th><th>Izvor</th><th>Vrsta</th><th>Detalji</th></tr>
+{% for e in events %}<tr><td>{{ e.ts|dt('%d.%m. %H:%M:%S') }}</td><td class="mono">{{ e.source }}</td><td>{{ e.kind }}</td><td class="mono" style="white-space:normal">{{ e.detail }}</td></tr>{% endfor %}</table></div>
 {% endblock %}

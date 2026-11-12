@@ -1,7 +1,7 @@
 <table><tr><th>Početak</th><th>Punionica</th><th>Konektor</th>{% if user.is_manager %}<th>Korisnik</th>{% endif %}<th>Kartica</th><th class="n">kWh</th><th class="n">EUR</th><th>Status</th></tr>
-{% for t in txs %}<tr><td>{{ t.started_at.strftime('%d.%m.%Y %H:%M') }}</td><td>{{ t.station.name or t.station.charge_point_id }}</td><td>{{ t.connector_id }}</td>
+{% for t in txs %}<tr><td>{{ t.started_at|dt('%d.%m.%Y %H:%M') }}</td><td>{{ t.station.name or t.station.charge_point_id }}</td><td>{{ t.connector_id }}</td>
 {% if user.is_manager %}<td>{{ t.user.name or t.user.email if t.user else '—' }}</td>{% endif %}
 <td class="mono">{{ t.card.label or t.id_tag if t.card else (t.id_tag or '—') }}</td>
 <td class="n">{{ '%.2f'|format(t.energy_kwh) }}</td><td class="n">{{ '%.2f'|format(t.cost_eur) }}</td>
-<td>{% if t.active %}<span class="pill ok">puni{% if t.power_w %} · {{ '%.1f'|format(t.power_w/1000) }} kW{% endif %}</span>{% else %}{{ t.stopped_at.strftime('%H:%M') if t.stopped_at }}{% endif %}</td></tr>
+<td>{% if t.active %}<span class="pill ok">puni{% if t.power_w %} · {{ '%.1f'|format(t.power_w/1000) }} kW{% endif %}</span>{% else %}{{ t.stopped_at|dt('%H:%M') if t.stopped_at }}{% endif %}</td></tr>
 {% else %}<tr><td colspan="8" class="muted">Nema punjenja.</td></tr>{% endfor %}</table>

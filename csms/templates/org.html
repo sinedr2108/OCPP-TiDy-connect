@@ -1,7 +1,8 @@
 {% extends "base.html" %}{% block content %}
 <p><a href="/orgs">← Organizacije</a></p>
 <h1>{{ o.name }} <span class="pill">{{ o.kind_label }}</span>{% if not o.active %} <span class="pill off">neaktivna</span>{% endif %}</h1>
-<div class="grid"><div class="card stat"><div class="l">Ovaj mjesec</div><div class="v">{{ '%.2f'|format(month.kwh) }} kWh</div><div class="l">{{ '%.2f'|format(month.eur) }} € · {{ month.count }} punjenja</div></div></div>
+<div class="grid"><div class="card stat"><div class="l">Ovaj mjesec</div><div class="v">{{ '%.2f'|format(month.kwh) }} kWh</div><div class="l">{{ '%.2f'|format(month.eur) }} € · {{ month.count }} punjenja</div></div>
+<div class="card"><h2>Mjesečni obračun</h2><form method="get" action="/reports/pdf" class="row"><input type="hidden" name="org_id" value="{{ o.id }}"><input type="month" name="month" required value="{{ this_month }}"><button class="sec">📄 PDF</button></form></div></div>
 <div class="card"><h2>Podaci</h2><form method="post" action="/orgs/{{ o.id }}" class="row"><input type="hidden" name="csrf" value="{{ csrf }}">
 <label>Naziv<input name="name" value="{{ o.name }}" required></label>
 <label>Vrsta<select name="kind">{% for k,l in ORG_KINDS.items() %}<option value="{{ k }}" {{ 'selected' if o.kind==k }}>{{ l }}</option>{% endfor %}</select></label>

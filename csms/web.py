@@ -9,7 +9,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, or_, select
 from starlette.middleware.sessions import SessionMiddleware
@@ -19,6 +19,7 @@ from .db import (ORG_KINDS, ConnectorStatus, EventLog, Organization, RfidCard, S
                  Transaction, User, get_setting, log_event, session_scope, set_setting, utcnow)
 from .security import (generate_station_password, hash_password, new_totp_secret, qr_svg, totp_uri,
                        verify_password, verify_totp)
+from .timeutil import current_month, fmt, local_to_utc, month_bounds, to_local
 from .vendors import VENDOR_PROFILES, normalize_id_tag
 
 app = FastAPI(title="OCPP Charge CSMS", docs_url=None, redoc_url=None)
@@ -27,6 +28,7 @@ app.add_middleware(SessionMiddleware, secret_key=config.SECRET_KEY, same_site="s
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 templates.env.globals["VENDORS"] = VENDOR_PROFILES
 templates.env.globals["ORG_KINDS"] = ORG_KINDS
+templates.env.filters["dt"] = fmt  # {{ t.started_at|dt('%d.%m. %H:%M') }} -> lokalno vrijeme
 
 MAX_FAILED = 5
 LOCK_MINUTES = 15
@@ -133,9 +135,14 @@ def flash(request: Request, msg: str):
     request.session["flash"] = msg
 
 
-def month_start(dt: datetime | None = None) -> datetime:
-    dt = dt or utcnow()
-    return dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+def month_start() -> datetime:
+    """Početak tekućeg lokalnog mjeseca (naivni UTC, za upite)."""
+    return month_bounds(*current_month())[0]
+
+
+def utc_from(v: str | None):
+    d = parse_date(v)
+    return local_to_utc(d) if d else None
 
 
 def parse_date(v: str | None):
@@ -146,6 +153,7 @@ def parse_date(v: str | None):
 
 
 def tx_query(s, user: User, user_id=None, card_id=None, date_from=None, date_to=None):
+    """date_from/date_to su naivni UTC (month_start) ili lokalni datumi iz forme (parse_date -> pretvoreni)."""
     q = s.query(Transaction)
     if user.is_org_admin and not user.is_admin:
         # punjenja članova organizacije i sva punjenja na punionicama organizacije (npr. gosti)
@@ -161,7 +169,7 @@ def tx_query(s, user: User, user_id=None, card_id=None, date_from=None, date_to=
     if date_from:
         q = q.filter(Transaction.started_at >= date_from)
     if date_to:
-        q = q.filter(Transaction.started_at < date_to + timedelta(days=1))
+        q = q.filter(Transaction.started_at < local_to_utc(date_to + timedelta(days=1)))
     return q
 
 
@@ -320,10 +328,10 @@ async def dashboard(request: Request, user: User = Depends(current_user)):
 
 @app.get("/reports", response_class=HTMLResponse)
 async def reports(request: Request, user: User = Depends(current_user), date_from: str = "", date_to: str = ""):
-    df = parse_date(date_from) or month_start()
+    df = parse_date(date_from) or datetime(*current_month(), 1)  # lokalni datum
     dt = parse_date(date_to)
     with session_scope() as s:
-        base = tx_query(s, user, date_from=df, date_to=dt)
+        base = tx_query(s, user, date_from=local_to_utc(df), date_to=dt)
         cols = (func.sum(Transaction.energy_wh), func.sum(Transaction.cost_eur), func.count(Transaction.id))
         by_user = (base.outerjoin(User, Transaction.user_id == User.id)
                    .with_entities(User.id, User.name, User.email, *cols).group_by(User.id).all())
@@ -336,7 +344,9 @@ async def reports(request: Request, user: User = Depends(current_user), date_fro
         by_station = (base.join(Station, Transaction.station_id == Station.id)
                       .with_entities(Station.id, Station.name, Station.charge_point_id, *cols)
                       .group_by(Station.id).all() if user.is_manager else [])
-    return render(request, "reports.html", user, by_user=by_user, by_card=by_card, by_org=by_org,
+        orgs = s.query(Organization).order_by(Organization.name).all() if user.is_admin else []
+        users = users_in_scope(s, user).order_by(User.name).all() if user.is_manager else []
+    return render(request, "reports.html", user, by_user=by_user, by_card=by_card, by_org=by_org, orgs=orgs, users=users,
                   by_station=by_station, date_from=df.strftime("%Y-%m-%d"),
                   date_to=dt.strftime("%Y-%m-%d") if dt else "")
 
@@ -345,7 +355,7 @@ async def reports(request: Request, user: User = Depends(current_user), date_fro
 async def sessions(request: Request, user: User = Depends(current_user), user_id: int | None = None,
                    card_id: int | None = None, date_from: str = "", date_to: str = ""):
     with session_scope() as s:
-        rows = (tx_query(s, user, user_id, card_id, parse_date(date_from), parse_date(date_to))
+        rows = (tx_query(s, user, user_id, card_id, utc_from(date_from), parse_date(date_to))
                 .order_by(Transaction.started_at.desc()).limit(500).all())
         for t in rows:
             _ = t.station, t.card, t.user
@@ -364,19 +374,66 @@ async def sessions_csv(user: User = Depends(current_user), user_id: int | None =
                        card_id: int | None = None, date_from: str = "", date_to: str = ""):
     buf = io.StringIO()
     w = csv.writer(buf, delimiter=";")
-    w.writerow(["ID", "Punionica", "Konektor", "Organizacija", "Korisnik", "Kartica", "Početak (UTC)",
-                "Kraj (UTC)", "kWh", "Cijena EUR/kWh", "Iznos EUR"])
+    w.writerow(["ID", "Punionica", "Konektor", "Organizacija", "Korisnik", "Kartica", "Početak",
+                "Kraj", "kWh", "Cijena EUR/kWh", "Iznos EUR"])
     with session_scope() as s:
         orgs = {o.id: o.name for o in s.query(Organization)}
-        for t in (tx_query(s, user, user_id, card_id, parse_date(date_from), parse_date(date_to))
+        for t in (tx_query(s, user, user_id, card_id, utc_from(date_from), parse_date(date_to))
                   .order_by(Transaction.started_at)):
             w.writerow([t.id, t.station.charge_point_id, t.connector_id, orgs.get(t.organization_id, ""),
-                        t.user.email if t.user else "", t.id_tag, t.started_at.strftime("%Y-%m-%d %H:%M"),
-                        t.stopped_at.strftime("%Y-%m-%d %H:%M") if t.stopped_at else "",
+                        t.user.email if t.user else "", t.id_tag, fmt(t.started_at, "%Y-%m-%d %H:%M"), fmt(t.stopped_at, "%Y-%m-%d %H:%M"),
                         f"{t.energy_kwh:.3f}".replace(".", ","), f"{t.price_per_kwh:.4f}".replace(".", ","),
                         f"{t.cost_eur:.2f}".replace(".", ",")])
     return StreamingResponse(iter(["﻿" + buf.getvalue()]), media_type="text/csv",
                              headers={"Content-Disposition": "attachment; filename=punjenja.csv"})
+
+
+# ----------------------------------------------------------------- mjesečni PDF obračun
+
+def parse_month(v: str) -> tuple[int, int]:
+    try:
+        y, m = (int(x) for x in v.split("-"))
+        assert 2000 <= y <= 2100 and 1 <= m <= 12
+        return y, m
+    except Exception:
+        return current_month()
+
+
+@app.get("/reports/pdf")
+async def report_pdf(user: User = Depends(current_user), month: str = "", org_id: int | None = None,
+                     user_id: int | None = None):
+    """Obračun za mjesec: korisnik dobiva svoj, admin organizacije svoju organizaciju (ili člana),
+    administrator platforme bilo koju organizaciju, korisnika ili sve."""
+    from .pdf_report import Row, Statement, build
+    y, m = parse_month(month)
+    start, end = month_bounds(y, m)
+    with session_scope() as s:
+        if not user.is_manager:
+            org_id, user_id = None, user.id
+        elif not user.is_admin:
+            org_id = user.organization_id
+            if user_id and (s.get(User, user_id) is None or s.get(User, user_id).organization_id != org_id):
+                raise HTTPException(404)
+        q = s.query(Transaction).filter(Transaction.started_at >= start, Transaction.started_at < end,
+                                        Transaction.active.is_(False))
+        if user_id:
+            u = get_or_404(s, User, user_id)
+            q = q.filter(Transaction.user_id == user_id)
+            title, subtitle = u.name or u.email, u.email
+        elif org_id:
+            o = get_or_404(s, Organization, org_id)
+            q = q.filter(Transaction.organization_id == org_id)
+            title, subtitle = o.name, " · ".join(x for x in [o.kind_label, o.address] if x)
+        else:
+            title, subtitle = "Sve organizacije", ""
+        rows = [Row(t.started_at, t.station.name or t.station.charge_point_id,
+                    (t.user.name or t.user.email) if t.user else "—",
+                    (t.card.label if t.card and t.card.app_token else t.id_tag) or "—",
+                    t.energy_kwh, t.price_per_kwh, t.cost_eur) for t in q]
+    pdf = build(Statement(title, subtitle, y, m, rows))
+    fname = f"obracun-{y}-{m:02d}.pdf"
+    return Response(pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="{fname}"'})
 
 
 # ----------------------------------------------------------------- punionice
@@ -622,7 +679,7 @@ async def org_detail(request: Request, oid: int, user: User = Depends(admin_user
         month = tx_totals(s.query(Transaction).filter(Transaction.organization_id == oid,
                                                       Transaction.started_at >= month_start()))
     return render(request, "org.html", user, o=o, members=members, grants=grants, owned=owned,
-                  all_stations=all_stations, month=month)
+                  all_stations=all_stations, month=month, this_month="%d-%02d" % current_month())
 
 
 @app.post("/orgs/{oid}", dependencies=[Depends(check_csrf)])
