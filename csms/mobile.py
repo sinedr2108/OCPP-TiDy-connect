@@ -112,8 +112,22 @@ async def app_stop(request: Request, tx_id: int = Form(...), user: User = Depend
     return RedirectResponse("/app", 303)
 
 
+def _back(back: str) -> str:
+    return back if back in ("/cards#dodaj", "/app#kartice") else "/app#kartice"
+
+
+def add_card_context(s, user: User) -> dict:
+    """Podaci za blok "Dodaj karticu" (_addcard.html)."""
+    learn = services.card_learning_for(user.id)
+    learn_name = None
+    if learn:
+        lst = s.query(Station).filter_by(charge_point_id=learn[0]).one_or_none()
+        learn_name = (lst.name or lst.charge_point_id) if lst else learn[0]
+    return {"stations": _station_view(s, user), "learn_name": learn_name}
+
+
 @app.post("/app/cards", dependencies=[Depends(check_csrf)])
-async def app_card_link(request: Request, uid: str = Form(...), label: str = Form(""),
+async def app_card_link(request: Request, uid: str = Form(...), label: str = Form(""), back: str = Form(""),
                         user: User = Depends(current_user)):
     """Korisnik sam veže svoju RFID karticu na račun (UID je otisnut na kartici ili ga vidi admin)."""
     tag = normalize_id_tag(uid)
@@ -121,16 +135,16 @@ async def app_card_link(request: Request, uid: str = Form(...), label: str = For
         _, msg = services.link_card(s, s.get(User, user.id), tag, label)
         log_event(s, "app", "card_link", f"{tag} by {user.email}: {msg}")
     flash(request, msg)
-    return RedirectResponse("/app#kartice", 303)
+    return RedirectResponse(_back(back), 303)
 
 
 @app.post("/app/cards/learn", dependencies=[Depends(check_csrf)])
 async def app_card_learn(request: Request, station_id: int = Form(0), cancel: str = Form(""),
-                         user: User = Depends(current_user)):
+                         back: str = Form(""), user: User = Depends(current_user)):
     """Dodavanje kartice prislanjanjem na punionicu: radi s bilo kojim mobitelom i bilo kojom karticom."""
     if cancel:
         services.cancel_card_learning(user.id)
-        return RedirectResponse("/app#kartice", 303)
+        return RedirectResponse(_back(back), 303)
     with session_scope() as s:
         st = s.get(Station, station_id)
         if st is None or not services.user_can_use(s, station_id, user):
@@ -138,17 +152,17 @@ async def app_card_learn(request: Request, station_id: int = Form(0), cancel: st
         cp_id, name = st.charge_point_id, st.name or st.charge_point_id
     if cp_id not in ocpp_server.CONNECTED:
         flash(request, "Ta punionica trenutno nije spojena na sustav.")
-        return RedirectResponse("/app#kartice", 303)
+        return RedirectResponse(_back(back), 303)
     other = services.CARD_LEARN.get(cp_id)
     if other and other[0] != user.id and other[1] > services.utcnow():
         flash(request, "Netko drugi upravo dodaje karticu na toj punionici. Pokušaj za dvije minute.")
-        return RedirectResponse("/app#kartice", 303)
+        return RedirectResponse(_back(back), 303)
     services.cancel_card_learning(user.id)
     services.start_card_learning(cp_id, user.id)
     with session_scope() as s:
         log_event(s, cp_id, "card_learn_started", f"by {user.email}")
     flash(request, f"Prisloni karticu na punionicu „{name}” u iduće dvije minute.")
-    return RedirectResponse("/app#kartice", 303)
+    return RedirectResponse(_back(back), 303)
 
 
 @app.post("/app/cards/{cid}/block", dependencies=[Depends(check_csrf)])

@@ -12,4 +12,5 @@
 {% if user.is_manager %}<td><form class="inline" method="post" action="/cards/{{ c.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="toggle"><button class="sec">{{ 'Blokiraj' if c.active else 'Aktiviraj' }}</button></form>
 <a href="/sessions?card_id={{ c.id }}">punjenja</a></td>{% endif %}</tr>
 {% else %}<tr><td colspan="5" class="muted">Nema kartica.</td></tr>{% endfor %}</table></div>
+{% if not user.is_admin %}<div class="card" id="dodaj">{% with back="/cards#dodaj" %}{% include "_addcard.html" %}{% endwith %}</div>{% endif %}
 {% endblock %}

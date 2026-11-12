@@ -725,7 +725,8 @@ async def cards(request: Request, user: User = Depends(current_user)):
             _ = c.user
         users = users_in_scope(s, user).order_by(User.name).all() if user.is_manager else []
         orgs = {o.id: o.name for o in s.query(Organization)} if user.is_admin else {}
-    return render(request, "cards.html", user, rows=rows, users=users, orgs=orgs)
+        extra = mobile.add_card_context(s, user) if not user.is_admin else {}
+    return render(request, "cards.html", user, rows=rows, users=users, orgs=orgs, **extra)
 
 
 def _card_owner_ok(s, user: User, user_id: int | None) -> bool:

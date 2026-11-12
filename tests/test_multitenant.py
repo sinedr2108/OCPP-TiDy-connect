@@ -194,6 +194,17 @@ def test_card_learning_by_tapping_on_station(monkeypatch):
     assert services.card_learning_for(IDS["a_emp"]) is None
 
 
+def test_add_card_on_cards_page():
+    c = login("a-emp@test.hr")
+    page = c.get("/cards").text
+    assert "Dodaj karticu" in page and 'id="nfc-scan"' in page and 'action="/app/cards/learn"' in page
+    r = c.post("/app/cards", data={"uid": "CAFE01", "back": "/cards#dodaj", "csrf": csrf(c, "/cards")},
+               follow_redirects=False)
+    assert r.headers["location"] == "/cards#dodaj" and "CAFE01" in c.get("/cards").text
+    boss = login("a-boss@test.hr")
+    assert "Dodaj karticu" in boss.get("/cards").text
+
+
 def test_nfc_scan_ui_present():
     c = login("a-emp@test.hr")
     assert re.search(r'src="/app\.js\?v=[0-9a-f]{10}"', c.get("/app").text)
