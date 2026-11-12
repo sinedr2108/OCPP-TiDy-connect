@@ -1,13 +1,14 @@
 {% extends "base.html" %}{% block content %}
 <h1>Punionice</h1>
-<div class="card"><h2>Dodaj punionicu</h2><form method="post" action="/stations" class="row"><input type="hidden" name="csrf" value="{{ csrf }}">
+{% if user.is_admin %}<div class="card"><h2>Dodaj punionicu</h2><form method="post" action="/stations" class="row"><input type="hidden" name="csrf" value="{{ csrf }}">
 <label>Charge Point ID<input name="charge_point_id" required class="mono" placeholder="npr. GARAZA-01"></label><label>Naziv<input name="name"></label>
+<label>Montirana kod<select name="organization_id"><option value="">—</option>{% for oid, n in orgs|dictsort(by='value') %}<option value="{{ oid }}">{{ n }}</option>{% endfor %}</select></label>
 <label>Proizvođač<select name="vendor_profile">{% for k,v in VENDORS.items() %}<option value="{{ k }}">{{ v.label }}</option>{% endfor %}</select></label>
 <label>Sigurnosni profil<select name="security_profile"><option value="1">1 – Basic Auth (ws)</option><option value="2" selected>2 – TLS + Basic Auth (wss)</option><option value="3">3 – TLS + klijentski certifikat</option></select></label>
 <button>Dodaj</button></form>
-<p class="muted">URL za punionicu: <code>{{ ws_url }}/</code> (profil 1) ili <code>{{ wss_url }}/</code> (profil 2/3), a Charge Point ID se dodaje na kraj. Nepoznate punionice koje se spoje automatski se pojave ovdje kao "čeka odobrenje".</p></div>
-<div class="card"><table><tr><th>ID</th><th>Naziv</th><th>Proizvođač / model</th><th>OCPP</th><th>Profil</th><th>Status</th><th>Zadnje javljanje</th></tr>
-{% for st in rows %}<tr><td class="mono"><a href="/stations/{{ st.id }}">{{ st.charge_point_id }}</a></td><td>{{ st.name }}</td><td>{{ st.vendor }} {{ st.model }}</td><td>{{ st.ocpp_version }}</td><td>{{ st.security_profile }}</td>
+<p class="muted">URL za punionicu: <code>{{ ws_url }}/</code> (profil 1) ili <code>{{ wss_url }}/</code> (profil 2/3), a Charge Point ID se dodaje na kraj. Nepoznate punionice koje se spoje automatski se pojave ovdje kao "čeka odobrenje".</p></div>{% endif %}
+<div class="card"><table><tr><th>ID</th><th>Naziv</th><th>Montirana kod</th><th>Proizvođač / model</th><th>OCPP</th><th>Profil</th><th>Status</th><th>Zadnje javljanje</th></tr>
+{% for st in rows %}<tr><td class="mono"><a href="{{ '/stations/%d' % st.id if user.is_admin else '/app/station/%d' % st.id }}">{{ st.charge_point_id }}</a></td><td>{{ st.name }}</td><td>{{ orgs.get(st.organization_id, '—') }}</td><td>{{ st.vendor }} {{ st.model }}</td><td>{{ st.ocpp_version }}</td><td>{{ st.security_profile }}</td>
 <td>{% if not st.approved %}<span class="pill off">čeka odobrenje</span>{% elif st.charge_point_id in online %}<span class="pill ok">online</span>{% else %}<span class="pill">offline</span>{% endif %}</td>
-<td>{{ st.last_seen.strftime('%d.%m. %H:%M') if st.last_seen else '—' }}</td></tr>{% else %}<tr><td colspan="7" class="muted">Nema punionica.</td></tr>{% endfor %}</table></div>
+<td>{{ st.last_seen.strftime('%d.%m. %H:%M') if st.last_seen else '—' }}</td></tr>{% else %}<tr><td colspan="8" class="muted">Nema punionica.</td></tr>{% endfor %}</table></div>
 {% endblock %}

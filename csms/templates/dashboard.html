@@ -1,12 +1,12 @@
 {% extends "base.html" %}{% block content %}
-<h1>Pregled{% if not user.is_admin %} – moja potrošnja{% endif %}</h1>
+<h1>Pregled{% if org %} · {{ org }}{% endif %}{% if not user.is_manager %} – moja potrošnja{% endif %}</h1>
 <div class="grid">
 <div class="card stat"><div class="l">Ovaj mjesec</div><div class="v">{{ '%.2f'|format(month.kwh) }} kWh</div><div class="l">{{ month.count }} punjenja</div></div>
 <div class="card stat"><div class="l">Ovaj mjesec</div><div class="v">{{ '%.2f'|format(month.eur) }} €</div></div>
 <div class="card stat"><div class="l">Ukupno</div><div class="v">{{ '%.2f'|format(total.kwh) }} kWh</div><div class="l">{{ '%.2f'|format(total.eur) }} € · {{ total.count }} punjenja</div></div>
-{% if user.is_admin %}<div class="card stat"><div class="l">Punionice online</div><div class="v">{{ online|length }} / {{ stations|length }}</div></div>{% endif %}
+{% if user.is_manager %}<div class="card stat"><div class="l">Punionice online</div><div class="v">{{ stations|selectattr("charge_point_id","in",online)|list|length }} / {{ stations|length }}</div></div>{% endif %}
 </div>
 {% if active %}<div class="card"><h2>Punjenja u tijeku</h2>{% with txs=active %}{% include "_txtable.html" %}{% endwith %}</div>{% endif %}
 <div class="card"><h2>Zadnja punjenja</h2>{% with txs=recent %}{% include "_txtable.html" %}{% endwith %}<p><a href="/sessions">Sva punjenja →</a></p></div>
-{% if not user.is_admin %}<div class="card"><h2>Moje kartice</h2>{% for c in cards %}<span class="pill {{ 'ok' if c.active else 'off' }} mono">{{ c.uid }}{% if c.label %} · {{ c.label }}{% endif %}</span> {% else %}<span class="muted">Nemaš dodijeljenih kartica.</span>{% endfor %}</div>{% endif %}
+{% if not user.is_manager %}<div class="card"><h2>Moje kartice</h2>{% for c in cards %}<span class="pill {{ 'ok' if c.active else 'off' }} mono">{{ c.uid }}{% if c.label %} · {{ c.label }}{% endif %}</span> {% else %}<span class="muted">Nemaš dodijeljenih kartica.</span>{% endfor %}</div>{% endif %}
 {% endblock %}

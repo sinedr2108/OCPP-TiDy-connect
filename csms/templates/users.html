@@ -2,9 +2,14 @@
 <h1>Korisnici</h1>
 <div class="card"><h2>Novi korisnik</h2><form method="post" action="/users" class="row"><input type="hidden" name="csrf" value="{{ csrf }}">
 <label>E-mail<input type="email" name="email" required></label><label>Ime<input name="name"></label><label>Početna lozinka (min. 10)<input type="password" name="password" minlength="10" required></label>
-<label><span><input type="checkbox" name="is_admin" value="1"> administrator</span></label><button>Dodaj</button></form></div>
-<div class="card"><table><tr><th>Ime</th><th>E-mail</th><th>Uloga</th><th>MFA</th><th>Status</th><th></th></tr>
-{% for u in rows %}<tr><td>{{ u.name }}</td><td>{{ u.email }}</td><td>{{ 'admin' if u.is_admin else 'korisnik' }}</td>
+{% if user.is_admin %}<label>Organizacija<select name="organization_id"><option value="">—</option>{% for o in orgs %}<option value="{{ o.id }}">{{ o.name }}</option>{% endfor %}</select></label>{% endif %}
+<label>Uloga<select name="org_role"><option value="member">korisnik</option><option value="admin">administrator organizacije</option></select></label>
+{% if user.is_admin %}<label><span><input type="checkbox" name="is_admin" value="1"> administrator platforme</span></label>{% endif %}<button>Dodaj</button></form>
+<p class="muted">Administrator organizacije upravlja korisnicima i karticama svoje organizacije i vidi potrošnju na njenim punionicama.</p></div>
+<div class="card"><table><tr><th>Ime</th><th>E-mail</th><th>Organizacija i uloga</th><th>MFA</th><th>Status</th><th></th></tr>
+{% for u in rows %}<tr><td>{{ u.name }}</td><td>{{ u.email }}</td><td>{% if u.is_admin %}<span class="pill ok">administrator platforme</span>{% else %}<form class="inline row" method="post" action="/users/{{ u.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="membership">
+{% if user.is_admin %}<select name="organization_id"><option value="">—</option>{% for o in orgs %}<option value="{{ o.id }}" {{ 'selected' if u.organization_id==o.id }}>{{ o.name }}</option>{% endfor %}</select>{% endif %}
+<select name="org_role"><option value="member">korisnik</option><option value="admin" {{ 'selected' if u.org_role=='admin' }}>admin org.</option></select><button class="sec">Spremi</button></form>{% endif %}</td>
 <td>{% if u.mfa_enabled %}<span class="pill ok">da</span>{% else %}<span class="pill">ne</span>{% endif %}</td>
 <td>{% if not u.active %}<span class="pill off">neaktivan</span>{% elif u.locked_until %}<span class="pill off">zaključan</span>{% else %}<span class="pill ok">aktivan</span>{% endif %}</td>
 <td>{% for a,l in [('toggle_active','Aktiviraj/deaktiviraj'),('reset_mfa','Resetiraj MFA'),('unlock','Otključaj')] %}<form class="inline" method="post" action="/users/{{ u.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="{{ a }}"><button class="sec">{{ l }}</button></form> {% endfor %}

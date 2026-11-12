@@ -32,6 +32,17 @@ Svi navedeni proizvođači koriste standardni OCPP, pa sustav radi s njima bez p
 
 > ⚠️ Kompatibilnost je testirana simulatorom prema OCPP specifikaciji, **ne na stvarnim uređajima**. Prije produkcije spoji po jedan uređaj svakog proizvođača i provjeri: spajanje, autorizaciju karticom, start/stop i mjerenja. Ako neki uređaj odstupa, to se rješava u `csms/vendors.py`.
 
+## Više organizacija i mobilna aplikacija
+
+Jedna instalacija služi svim mjestima gdje su montirane punionice: tvrtkama, kućanstvima, udrugama i javnim mjestima.
+
+- **Organizacije** (*Organizacije*, samo administrator platforme): tvrtka, kućanstvo, udruga ili javno mjesto. Punionica se veže na organizaciju kod koje je montirana.
+- **Dozvole**: korisnici vide i koriste **samo** punionice za koje im je dana dozvola, bilo cijeloj organizaciji ili pojedinom korisniku (npr. gostu). Kartica bez dozvole se na punionici odbija.
+- **Cijena po dozvoli**: npr. zaposlenici 0 €/kWh, gost 0,45 €/kWh. Redoslijed: osobna dozvola → dozvola organizacije → cijena punionice → zadana cijena.
+- **Uloge**: administrator platforme (sve), administrator organizacije (korisnici i kartice svoje organizacije, potrošnja svojih članova i svih punjenja na punionicama organizacije), korisnik (samo svoje).
+- **Mobilna aplikacija** `/app`: web aplikacija (PWA) koja se instalira s početnog zaslona mobitela, bez App Storea. Korisnik vidi svoje punionice, pokreće i zaustavlja punjenje, prati kWh/€ uživo, veže i blokira svoju RFID karticu. Na stranici punionice je QR kod za ljepljenje na punionicu.
+- **Nadogradnja postojeće instalacije**: novi stupci se dodaju automatski; postojeći korisnici i punionice prebacuju se u organizaciju *Postojeći korisnici* s dozvolom za sve postojeće punionice, pa sve radi kao prije.
+
 ## Pokretanje
 
 📘 **Detaljne upute korak po korak (server, HTTPS, prva proba, spajanje punionica, backup): [docs/INSTALACIJA.md](docs/INSTALACIJA.md)**

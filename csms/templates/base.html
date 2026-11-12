@@ -2,6 +2,7 @@
 <html lang="hr">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0b7a53"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/app-icon.svg"><link rel="apple-touch-icon" href="/app-icon.svg">
 <title>{% block title %}OCPP Charge{% endblock %}</title>
 <style>
 :root{--bg:#f6f7f9;--card:#fff;--fg:#1d2330;--muted:#667085;--line:#e4e7ec;--acc:#0b7a53;--acc2:#e7f5ef;--bad:#b42318;--warn:#b54708}
@@ -19,18 +20,22 @@ form.inline{display:inline}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:
 .flash{background:var(--acc2);border:1px solid var(--acc);padding:10px 14px;border-radius:8px;margin-bottom:16px}
 .pill{font-size:12px;padding:2px 8px;border-radius:99px;background:var(--line)}.ok{background:var(--acc2);color:var(--acc)}.off{color:var(--bad)}.muted{color:var(--muted)}
 code,.mono{font-family:ui-monospace,Consolas,monospace;font-size:13px}.secret{font-size:18px;padding:10px;background:var(--acc2);border-radius:6px;display:inline-block;user-select:all}
+.big{font-size:17px;padding:12px 16px;width:100%;margin-top:6px}.conn{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line)}
+.live .v{font-size:34px;font-weight:700}.app main{max-width:560px}.app nav a:not(.brand){font-size:14px;padding:6px 7px}
 .login{max-width:380px;margin:60px auto}.login input{width:100%;margin-bottom:10px}.login button{width:100%}
 </style>
 </head>
-<body>
+<body class="{% block bodyclass %}{% endblock %}">
 {% if user %}<header><nav>
 <a class="brand" href="/">⚡ OCPP Charge</a>
-<a href="/">Pregled</a><a href="/sessions">Punjenja</a><a href="/reports">Izvještaji</a><a href="/cards">Kartice</a>
-{% if user.is_admin %}<a href="/stations">Punionice</a><a href="/users">Korisnici</a><a href="/settings">Postavke</a>{% endif %}
+<a href="/app">📱 Aplikacija</a><a href="/">Pregled</a><a href="/sessions">Punjenja</a><a href="/reports">Izvještaji</a><a href="/cards">Kartice</a>
+{% if user.is_manager %}<a href="/stations">Punionice</a><a href="/users">Korisnici</a>{% endif %}
+{% if user.is_admin %}<a href="/orgs">Organizacije</a><a href="/settings">Postavke</a>{% endif %}
 <span class="sp"></span><a href="/account">{{ user.name or user.email }}</a><a href="/logout">Odjava</a>
 </nav></header>{% endif %}
 <main>
 {% if flash %}<div class="flash">{{ flash }}</div>{% endif %}
 {% block content %}{% endblock %}
 </main>
+<script src="/app.js" defer></script>
 </body></html>

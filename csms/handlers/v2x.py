@@ -34,7 +34,7 @@ class V2xMixin:
             return None
         if id_token.get("type") in ("NoAuthorization",):
             return {"status": "Accepted"}
-        status = services.authorize_tag(id_token["id_token"]).status if self.approved else "Invalid"
+        status = services.authorize_tag(id_token["id_token"], self.id).status if self.approved else "Invalid"
         return {"status": status}
 
     @on("BootNotification")

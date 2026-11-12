@@ -4,34 +4,86 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
-from .db import (ConnectorStatus, RfidCard, Station, Transaction, User, get_setting, log_event,
-                 session_scope, utcnow)
+from .db import (ConnectorStatus, Organization, RfidCard, Station, StationAccess, Transaction, User,
+                 get_setting, log_event, session_scope, utcnow)
 from .vendors import normalize_id_tag
 
 
 @dataclass
 class AuthResult:
-    status: str  # Accepted | Blocked | Expired | Invalid
+    # Accepted | Blocked | Expired | Invalid | NotAtThisLocation (2.x; u 1.6 se šalje kao Invalid)
+    status: str
     card_id: int | None = None
     user_id: int | None = None
+    organization_id: int | None = None
+    price_per_kwh: float | None = None  # cijena iz dozvole, ako je zadana
 
 
-def authorize_tag(raw_tag: str) -> AuthResult:
+def find_access(s, station_id: int, user: User | None, org_id: int | None) -> StationAccess | None:
+    """Dozvola za punionicu: najprije osobna dozvola korisnika, zatim dozvola njegove organizacije."""
+    q = s.query(StationAccess).filter_by(station_id=station_id)
+    if user is not None:
+        a = q.filter(StationAccess.user_id == user.id).first()
+        if a:
+            return a
+    if org_id:
+        return q.filter(StationAccess.organization_id == org_id, StationAccess.user_id.is_(None)).first()
+    return None
+
+
+def user_can_use(s, station_id: int, user: User) -> bool:
+    return user.is_admin or find_access(s, station_id, user, user.organization_id) is not None
+
+
+def allowed_station_ids(s, user: User) -> set[int] | None:
+    """ID-evi punionica koje korisnik vidi i smije koristiti; None = sve (administrator platforme)."""
+    if user.is_admin:
+        return None
+    q = s.query(StationAccess.station_id).filter(StationAccess.user_id == user.id)
+    ids = {r[0] for r in q}
+    if user.organization_id:
+        ids |= {r[0] for r in s.query(StationAccess.station_id)
+                .filter(StationAccess.organization_id == user.organization_id, StationAccess.user_id.is_(None))}
+        if user.is_org_admin:
+            ids |= {r[0] for r in s.query(Station.id).filter(Station.organization_id == user.organization_id)}
+    return ids
+
+
+def authorize_tag(raw_tag: str, cp_id: str | None = None) -> AuthResult:
+    """Provjeri karticu; ako je zadana punionica, provjeri i dozvolu za nju."""
     tag = normalize_id_tag(raw_tag)
     with session_scope() as s:
         card = s.query(RfidCard).filter_by(uid=tag).one_or_none()
         if card is None:
-            log_event(s, "rfid", "unknown_card", tag)
+            log_event(s, cp_id or "rfid", "unknown_card", tag)
             return AuthResult("Invalid")
+        user = s.get(User, card.user_id) if card.user_id else None
+        org_id = (user.organization_id if user else None) or card.organization_id
+        res = AuthResult("Accepted", card.id, card.user_id, org_id)
         if not card.active:
-            return AuthResult("Blocked", card.id, card.user_id)
+            res.status = "Blocked"
+            return res
         if card.expires_at and card.expires_at < utcnow():
-            return AuthResult("Expired", card.id, card.user_id)
-        if card.user_id:
-            user = s.get(User, card.user_id)
-            if user and not user.active:
-                return AuthResult("Blocked", card.id, card.user_id)
-        return AuthResult("Accepted", card.id, card.user_id)
+            res.status = "Expired"
+            return res
+        if user and not user.active:
+            res.status = "Blocked"
+            return res
+        if org_id:
+            org = s.get(Organization, org_id)
+            if org and not org.active:
+                res.status = "Blocked"
+                return res
+        if cp_id:
+            st = s.query(Station).filter_by(charge_point_id=cp_id).one_or_none()
+            if st and not (user and user.is_admin):
+                access = find_access(s, st.id, user, org_id)
+                if access is None:
+                    log_event(s, cp_id, "card_not_allowed", tag)
+                    res.status = "NotAtThisLocation"
+                    return res
+                res.price_per_kwh = access.price_per_kwh
+        return res
 
 
 def parse_ts(value) -> datetime:
@@ -91,13 +143,15 @@ def _recalc(tx: Transaction) -> None:
 
 def start_transaction(cp_id: str, connector_id: int, id_tag: str, meter_start_wh: float | None,
                       ts=None, ocpp_tx_id: str | None = None) -> tuple[Transaction, AuthResult]:
-    auth = authorize_tag(id_tag) if id_tag else AuthResult("Accepted")
+    auth = authorize_tag(id_tag, cp_id) if id_tag else AuthResult("Accepted")
     with session_scope() as s:
         st = s.query(Station).filter_by(charge_point_id=cp_id).one()
         tx = Transaction(station_id=st.id, connector_id=connector_id, id_tag=normalize_id_tag(id_tag),
-                         card_id=auth.card_id, user_id=auth.user_id, started_at=parse_ts(ts) if ts else utcnow(),
+                         card_id=auth.card_id, user_id=auth.user_id, organization_id=auth.organization_id,
+                         started_at=parse_ts(ts) if ts else utcnow(),
                          meter_start_wh=meter_start_wh or 0.0, meter_last_wh=meter_start_wh,
-                         price_per_kwh=station_price(s, st), ocpp_tx_id=ocpp_tx_id or "")
+                         price_per_kwh=auth.price_per_kwh if auth.price_per_kwh is not None
+                         else station_price(s, st), ocpp_tx_id=ocpp_tx_id or "")
         s.add(tx)
         s.flush()
         if not ocpp_tx_id:
@@ -126,8 +180,11 @@ def update_transaction(tx_id: int, energy_wh: float | None, power_w: float | Non
         if power_w is not None:
             tx.power_w = power_w
         if id_tag and not tx.id_tag:
-            auth = authorize_tag(id_tag)
+            auth = authorize_tag(id_tag, tx.station.charge_point_id)
             tx.id_tag, tx.card_id, tx.user_id = normalize_id_tag(id_tag), auth.card_id, auth.user_id
+            tx.organization_id = auth.organization_id
+            if auth.price_per_kwh is not None:
+                tx.price_per_kwh = auth.price_per_kwh
         _recalc(tx)
 
 
@@ -172,3 +229,17 @@ def touch_station(cp_id: str, **fields) -> None:
 def event(source: str, kind: str, detail: str = "") -> None:
     with session_scope() as s:
         log_event(s, source, kind, detail)
+
+
+def app_token(user_id: int) -> str:
+    """Virtualna "kartica" korisnika za start iz aplikacije (RemoteStart idTag, max 20 znakova)."""
+    import secrets
+    with session_scope() as s:
+        card = s.query(RfidCard).filter_by(user_id=user_id, app_token=True).first()
+        if card is None:
+            card = RfidCard(uid="APP" + secrets.token_hex(6).upper(), label="Aplikacija", user_id=user_id,
+                            app_token=True)
+            s.add(card)
+        elif not card.active:
+            card.active = True
+        return card.uid

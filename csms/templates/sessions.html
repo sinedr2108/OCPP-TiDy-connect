@@ -1,7 +1,7 @@
 {% extends "base.html" %}{% block content %}
 <h1>Punjenja</h1>
 <div class="card"><form class="row" method="get">
-{% if user.is_admin %}<label>Korisnik<select name="user_id"><option value="">Svi</option>{% for u in users %}<option value="{{ u.id }}" {{ 'selected' if f.user_id==u.id }}>{{ u.name or u.email }}</option>{% endfor %}</select></label>{% endif %}
+{% if user.is_manager %}<label>Korisnik<select name="user_id"><option value="">Svi</option>{% for u in users %}<option value="{{ u.id }}" {{ 'selected' if f.user_id==u.id }}>{{ u.name or u.email }}</option>{% endfor %}</select></label>{% endif %}
 <label>Kartica<select name="card_id"><option value="">Sve</option>{% for c in cards %}<option value="{{ c.id }}" {{ 'selected' if f.card_id==c.id }}>{{ c.uid }} {{ c.label }}</option>{% endfor %}</select></label>
 <label>Od<input type="date" name="date_from" value="{{ f.date_from }}"></label><label>Do<input type="date" name="date_to" value="{{ f.date_to }}"></label>
 <button>Filtriraj</button><a class="btn" href="/sessions.csv?{{ qs }}">CSV izvoz</a></form></div>
