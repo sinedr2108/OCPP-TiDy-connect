@@ -7,6 +7,7 @@ from __future__ import annotations
 from fastapi import Depends, Form, HTTPException, Request
 import hashlib
 import secrets
+import time
 from pathlib import Path
 
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -17,6 +18,11 @@ from .db import (ConnectorStatus, PushSubscription, RfidCard, Station, Transacti
 from .vendors import normalize_id_tag
 from .web import (app, check_csrf, templates, current_user, flash, month_start, org_name, render, stations_for,
                   tx_totals)
+
+
+# (cp_id, konektor) -> (user_id, istek): Start iz aplikacije prihvaćen, punionica čeka vozilo.
+PENDING_START: dict[tuple[str, int], tuple[int, float]] = {}
+PENDING_START_TTL = 300
 
 
 def _station_view(s, user: User) -> list[dict]:
@@ -89,6 +95,8 @@ async def app_start(request: Request, station_id: int = Form(...), connector_id:
         res = await ocpp_server.send_command(cp_id, "remote_start", tag, connector_id)
     except Exception as e:
         res = f"greška: {e}"
+    if res == "Accepted":
+        PENDING_START[(cp_id, connector_id)] = (user.id, time.monotonic() + PENDING_START_TTL)
     with session_scope() as s:
         log_event(s, cp_id, "app_start", f"{res} (by {user.email}, connector {connector_id})")
     flash(request, "Punjenje se pokreće. Priključi kabel ako već nije." if res == "Accepted"
@@ -96,13 +104,65 @@ async def app_start(request: Request, station_id: int = Form(...), connector_id:
     return RedirectResponse("/app", 303)
 
 
+def _can_stop(user: User, tx: Transaction) -> bool:
+    """Svoje punjenje smije zaustaviti svatko; tuđe samo administrator platforme ili organizacije."""
+    if tx.user_id == user.id or user.is_admin:
+        return True
+    return user.is_org_admin and user.organization_id in (tx.organization_id, tx.station.organization_id)
+
+
+def _pending_start(cp_id: str, connector_id: int) -> int | None:
+    """Korisnik koji je pokrenuo Start iz aplikacije, a punionica još čeka vozilo."""
+    p = PENDING_START.get((cp_id, connector_id))
+    if p and p[1] > time.monotonic():
+        return p[0]
+    PENDING_START.pop((cp_id, connector_id), None)
+    return None
+
+
 @app.post("/app/stop", dependencies=[Depends(check_csrf)])
-async def app_stop(request: Request, tx_id: int = Form(...), user: User = Depends(current_user)):
+async def app_stop(request: Request, tx_id: int | None = Form(None), station_id: int | None = Form(None),
+                   connector_id: int = Form(1), user: User = Depends(current_user)):
+    """Zaustavi punjenje, ili otkaži Start dok punionica još čeka da se vozilo priključi."""
+    back = f"/app/station/{station_id}" if station_id else "/app"
     with session_scope() as s:
-        tx = s.get(Transaction, tx_id)
-        if tx is None or tx.user_id != user.id or not tx.active:
-            raise HTTPException(404)
-        cp_id, ocpp_tx = tx.station.charge_point_id, tx.ocpp_tx_id
+        if tx_id is not None:
+            tx = s.get(Transaction, tx_id)
+            if tx is None:
+                raise HTTPException(404)
+        else:
+            st = s.get(Station, station_id or -1)
+            if st is None or not services.user_can_use(s, st.id, user):
+                raise HTTPException(403)
+            tx = (s.query(Transaction).filter_by(station_id=st.id, connector_id=connector_id, active=True)
+                  .order_by(Transaction.started_at.desc()).first())
+            if tx is None:
+                cp_id = st.charge_point_id
+        if tx is not None:
+            if not tx.active or not _can_stop(user, tx):
+                raise HTTPException(404)
+            cp_id, ocpp_tx = tx.station.charge_point_id, tx.ocpp_tx_id
+    if cp_id not in ocpp_server.CONNECTED:
+        flash(request, "Punionica trenutno nije spojena na sustav.")
+        return RedirectResponse(back, 303)
+
+    if tx is None:  # nema punjenja: možda punionica čeka vozilo nakon Starta
+        starter = _pending_start(cp_id, connector_id)
+        if starter is None or (starter != user.id and not user.is_manager):
+            flash(request, "Na ovom konektoru nema punjenja koje bi se moglo zaustaviti.")
+            return RedirectResponse(back, 303)
+        try:
+            res = await ocpp_server.send_command(cp_id, "cancel_start", connector_id)
+        except Exception as e:
+            res = f"greška: {e}"
+        if res in ("Accepted", "Scheduled"):
+            PENDING_START.pop((cp_id, connector_id), None)
+        with session_scope() as s:
+            log_event(s, cp_id, "app_cancel_start", f"{res} (by {user.email}, connector {connector_id})")
+        flash(request, "Start je otkazan." if res in ("Accepted", "Scheduled")
+              else f"Punionica nije prihvatila otkazivanje ({res}).")
+        return RedirectResponse(back, 303)
+
     try:
         res = await ocpp_server.send_command(cp_id, "remote_stop", ocpp_tx)
     except Exception as e:
@@ -110,7 +170,7 @@ async def app_stop(request: Request, tx_id: int = Form(...), user: User = Depend
     with session_scope() as s:
         log_event(s, cp_id, "app_stop", f"{res} (by {user.email})")
     flash(request, "Punjenje se zaustavlja." if res == "Accepted" else f"Punionica nije prihvatila stop ({res}).")
-    return RedirectResponse("/app", 303)
+    return RedirectResponse(back, 303)
 
 
 def _back(back: str) -> str:

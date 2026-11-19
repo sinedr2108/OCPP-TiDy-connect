@@ -227,3 +227,52 @@ def test_nfc_scan_ui_present():
     assert re.search(r'src="/app\.js\?v=[0-9a-f]{10}"', c.get("/app").text)
     assert c.get("/app.js").headers["cache-control"] == "no-cache"
     assert 'id="nfc-scan"' in c.get("/app").text and "NDEFReader" in c.get("/app.js").text
+
+
+class FakeCP:
+    def __init__(self):
+        self.calls = []
+
+    async def remote_start(self, tag, cid=1):
+        self.calls.append(("start", cid)); return "Accepted"
+
+    async def remote_stop(self, tx):
+        self.calls.append(("stop", tx)); return "Accepted"
+
+    async def cancel_start(self, cid=1):
+        self.calls.append(("cancel", cid)); return "Accepted"
+
+
+def test_stop_button_next_to_start(monkeypatch):
+    from csms import mobile, ocpp_server
+    cp = FakeCP()
+    monkeypatch.setitem(ocpp_server.CONNECTED, "MT-A", cp)
+    mobile.PENDING_START.clear()
+    emp, guest = login("a-emp@test.hr"), login("guest@test.hr")
+    page = emp.get(f"/app/station/{IDS['st_a']}").text
+    assert 'action="/app/start"' in page and 'action="/app/stop"' in page and ">Stop</button>" in page
+    stop = {"station_id": IDS["st_a"], "connector_id": 1}
+    # ništa ne čeka i nema punjenja: ništa se ne šalje
+    emp.post("/app/stop", data={**stop, "csrf": csrf(emp, "/app")}, follow_redirects=False)
+    assert cp.calls == []
+    # Start prihvaćen, vozilo nije priključeno: Stop otkazuje Start, ali samo onome tko ga je pokrenuo
+    emp.post("/app/start", data={**stop, "csrf": csrf(emp, "/app")}, follow_redirects=False)
+    guest.post("/app/stop", data={**stop, "csrf": csrf(guest, "/app")}, follow_redirects=False)
+    assert cp.calls == [("start", 1)]
+    r = emp.post("/app/stop", data={**stop, "csrf": csrf(emp, "/app")}, follow_redirects=False)
+    assert r.headers["location"] == f"/app/station/{IDS['st_a']}"
+    assert cp.calls[-1] == ("cancel", 1) and not mobile.PENDING_START
+    # aktivno punjenje: svoje smije zaustaviti, tuđe ne; admin organizacije smije
+    with session_scope() as s:
+        tx = Transaction(ocpp_tx_id="777", station_id=IDS["st_a"], connector_id=1, user_id=IDS["a_emp"],
+                         organization_id=IDS["a"], active=True)
+        s.add(tx); s.flush(); tx_id = tx.id
+    guest.post("/app/stop", data={**stop, "csrf": csrf(guest, "/app")}, follow_redirects=False)
+    assert cp.calls[-1] == ("cancel", 1)
+    boss = login("a-boss@test.hr")
+    boss.post("/app/stop", data={**stop, "csrf": csrf(boss, "/app")}, follow_redirects=False)
+    assert cp.calls[-1] == ("stop", "777")
+    emp.post("/app/stop", data={"tx_id": tx_id, "csrf": csrf(emp, "/app")}, follow_redirects=False)
+    assert cp.calls[-1] == ("stop", "777") and len(cp.calls) == 4
+    with session_scope() as s:
+        s.get(Transaction, tx_id).active = False

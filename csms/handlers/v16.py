@@ -150,6 +150,13 @@ class ChargePoint16(CP16):
     async def remote_stop(self, ocpp_tx_id: str):
         return (await self.call(call.RemoteStopTransaction(transaction_id=int(ocpp_tx_id)))).status
 
+    async def cancel_start(self, connector_id: int = 1):
+        """Otkaži prihvaćeni RemoteStart dok punionica čeka vozilo (1.6 nema izravnu naredbu):
+        konektor kratko prebacimo u Inoperative pa natrag u Operative."""
+        st = (await self.call(call.ChangeAvailability(connector_id=connector_id, type="Inoperative"))).status
+        await self.call(call.ChangeAvailability(connector_id=connector_id, type="Operative"))
+        return st
+
     async def reset(self, hard: bool = False):
         return (await self.call(call.Reset(type="Hard" if hard else "Soft"))).status
 

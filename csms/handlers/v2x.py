@@ -143,6 +143,13 @@ class V2xMixin:
     async def remote_stop(self, ocpp_tx_id: str):
         return (await self.call(self.CALL.RequestStopTransaction(transaction_id=ocpp_tx_id))).status
 
+    async def cancel_start(self, connector_id: int = 1):
+        """Otkaži prihvaćeni RequestStart dok punionica čeka vozilo: EVSE kratko Inoperative pa Operative."""
+        evse = {"id": connector_id}
+        st = (await self.call(self.CALL.ChangeAvailability(operational_status="Inoperative", evse=evse))).status
+        await self.call(self.CALL.ChangeAvailability(operational_status="Operative", evse=evse))
+        return st
+
     async def reset(self, hard: bool = False):
         return (await self.call(self.CALL.Reset(type="Immediate" if hard else "OnIdle"))).status
 
