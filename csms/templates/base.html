@@ -30,7 +30,7 @@ code,.mono{font-family:ui-monospace,Consolas,monospace;font-size:13px}.secret{fo
 {% if user %}<header><nav>
 <a class="brand" href="/"><img src="/static/mark-96.png?v={{ ASSET_VERSION }}" alt="" width="30" height="30"><span><b class="tid">TiD</b>y Charge</span></a>
 <a href="/app">📱 Aplikacija</a><a href="/">Pregled</a><a href="/sessions">Punjenja</a><a href="/reports">Izvještaji</a><a href="/cards">Kartice</a>
-{% if user.is_manager %}<a href="/stations">Punionice</a><a href="/users">Korisnici</a>{% endif %}
+{% if user.is_manager %}<a href="/stations">Punionice</a><a href="/users">Korisnici</a><a href="/prices">Cijene</a>{% endif %}
 {% if user.is_admin %}<a href="/orgs">Organizacije</a><a href="/settings">Postavke</a>{% endif %}
 <a href="/help">Upute</a><span class="sp"></span><a href="/account">{{ user.name or user.email }}</a><a href="/logout">Odjava</a>
 </nav></header>{% endif %}

@@ -40,14 +40,15 @@
 <ol><li><a href="/users">Korisnici</a>: dodaj zaposlenike, ukućane ili goste svoje organizacije i odredi im ulogu.</li>
 <li><a href="/cards">Kartice</a>: upiši kartice i dodijeli ih korisnicima, blokiraj izgubljene.</li>
 <li><a href="/reports">Izvještaji</a>: potrošnja po korisniku i punionici te mjesečni PDF obračun za cijelu organizaciju.</li>
-<li><a href="/stations">Punionice</a>: status punionica koje tvoja organizacija smije koristiti.</li></ol></div>{% endif %}
+<li><a href="/stations">Punionice</a>: status punionica koje tvoja organizacija smije koristiti.</li>
+<li><a href="/prices">Cijene</a>: postavi cijenu po kWh za punionice montirane kod tvoje organizacije, po želji i drugačiju cijenu za pojedinu organizaciju ili gosta (0 = besplatno). Cijene postavlja samo administrator organizacije.</li></ol></div>{% endif %}
 
 {% if user and user.is_admin %}<div class="card help"><h2>🛠 Za administratora platforme</h2>
 <ol><li><a href="/orgs">Organizacije</a>: dodaj tvrtku, kućanstvo, udrugu ili javno mjesto.</li>
 <li><a href="/stations">Punionice</a>: dodaj punionicu, upiši u nju prikazani URL, Charge Point ID i lozinku, i odaberi kod koga je montirana.</li>
-<li>Na stranici punionice pod <i>Tko smije koristiti ovu punionicu</i> daj dozvolu organizaciji ili pojedinom korisniku i po želji upiši cijenu (0 = besplatno).</li>
+<li>Na stranici punionice pod <i>Tko smije koristiti ovu punionicu</i> daj dozvolu organizaciji ili pojedinom korisniku. Cijene postavlja administrator organizacije kod koje je punionica.</li>
 <li>Isprintaj <i>QR kod za aplikaciju</i> sa stranice punionice i zalijepi ga na punionicu.</li>
-<li><a href="/settings">Postavke</a>: zadana cijena po kWh i dnevnik događaja.</li></ol></div>{% endif %}
+<li><a href="/settings">Postavke</a>: dnevnik događaja. <a href="/prices">Cijene</a> možeš vidjeti, ali ih ne mijenjaš.</li></ol></div>{% endif %}
 
 <p class="muted">Nešto ne radi? Javi se osobi koja ti je otvorila račun ili tvrtki <a href="https://tid-intel.hr" target="_blank" rel="noopener">TiD-INTEL d.o.o.</a></p>
 {% endblock %}

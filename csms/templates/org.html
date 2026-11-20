@@ -15,7 +15,7 @@
 {% else %}<tr><td colspan="3" class="muted">Nema dozvola. Korisnici ove organizacije ne vide nijednu punionicu.</td></tr>{% endfor %}</table>
 <form method="post" action="/orgs/{{ o.id }}/access" class="row" style="margin-top:12px"><input type="hidden" name="csrf" value="{{ csrf }}">
 <label>Punionica<select name="station_id" required>{% for st in all_stations %}<option value="{{ st.id }}">{{ st.name or st.charge_point_id }}</option>{% endfor %}</select></label>
-<label>Cijena EUR/kWh (prazno = cijena punionice, 0 = besplatno)<input name="price_per_kwh"></label><button>Dodaj dozvolu</button></form></div>
+<button>Dodaj dozvolu</button></form></div>
 
 <div class="card"><h2>Montirane punionice (lokacija ove organizacije)</h2>{% for st in owned %}<a class="pill" href="/stations/{{ st.id }}">{{ st.name or st.charge_point_id }}</a> {% else %}<span class="muted">Nema.</span>{% endfor %}
 <p class="muted">Administrator organizacije vidi sva punjenja na ovim punionicama, uključujući goste.</p></div>

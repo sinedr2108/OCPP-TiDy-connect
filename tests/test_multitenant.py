@@ -140,11 +140,12 @@ def test_user_links_card_in_app():
 def test_admin_pages_render_and_grant():
     c = login("mt-admin@test.hr")
     for url in ["/", "/orgs", f"/orgs/{IDS['a']}", "/stations", f"/stations/{IDS['st_a']}", "/users", "/cards",
-                "/reports", "/sessions", "/app", f"/app/station/{IDS['st_a']}", "/settings"]:
+                "/reports", "/sessions", "/app", f"/app/station/{IDS['st_a']}", "/settings", "/prices"]:
         assert c.get(url).status_code == 200, url
     tok = csrf(c, "/orgs")
     c.post(f"/orgs/{IDS['h']}/access", data={"station_id": IDS["st_a"], "price_per_kwh": "0,30", "csrf": tok})
-    assert services.authorize_tag("MTMOM1", "MT-A").price_per_kwh == 0.3
+    auth = services.authorize_tag("MTMOM1", "MT-A")
+    assert auth.status == "Accepted" and auth.price_per_kwh is None  # platform admin ne postavlja cijene
     with session_scope() as s:
         gid = s.query(StationAccess).filter_by(station_id=IDS["st_a"], organization_id=IDS["h"]).one().id
     c.post(f"/access/{gid}/delete", data={"csrf": tok})
@@ -276,3 +277,43 @@ def test_stop_button_next_to_start(monkeypatch):
     assert cp.calls[-1] == ("stop", "777") and len(cp.calls) == 4
     with session_scope() as s:
         s.get(Transaction, tx_id).active = False
+
+
+def test_only_station_org_admin_sets_prices():
+    with session_scope() as s:
+        st_price = s.get(Station, IDS["st_a"]).price_per_kwh
+        guest_grant = s.query(StationAccess).filter_by(station_id=IDS["st_a"], user_id=IDS["guest"]).one().id
+    admin, boss, emp, mom = (login(e) for e in ("mt-admin@test.hr", "a-boss@test.hr", "a-emp@test.hr",
+                                                  "h-mom@test.hr"))
+    # platform admin vidi cijene, ali ih ne može mijenjati (ni preko stare forme punionice)
+    page = admin.get("/prices").text
+    assert "Garaža A" in page and 'action="/prices/station/' not in page
+    assert admin.post(f"/prices/station/{IDS['st_a']}", data={"price_per_kwh": "9", "csrf": csrf(admin, "/orgs")}
+                      ).status_code == 403
+    admin.post(f"/stations/{IDS['st_a']}", data={"name": "Garaža A", "security_profile": 1, "approved": "1",
+                                                 "organization_id": IDS["a"], "price_per_kwh": "9",
+                                                 "csrf": csrf(admin, "/orgs")})
+    with session_scope() as s:
+        assert s.get(Station, IDS["st_a"]).price_per_kwh == st_price
+    # obični korisnik i admin druge organizacije ne mogu
+    assert emp.get("/prices").status_code == 403
+    assert mom.post(f"/prices/station/{IDS['st_a']}", data={"price_per_kwh": "1", "csrf": csrf(mom, "/app")}
+                    ).status_code == 403
+    # admin organizacije punionice može
+    page = boss.get("/prices").text
+    assert "Garaža A" in page and "Kućna" not in page
+    tok = csrf(boss, "/prices")
+    boss.post(f"/prices/station/{IDS['st_a']}", data={"price_per_kwh": "0,33", "csrf": tok})
+    boss.post(f"/prices/access/{guest_grant}", data={"price_per_kwh": "", "csrf": tok})
+    with session_scope() as s:
+        assert s.get(Station, IDS["st_a"]).price_per_kwh == 0.33
+        assert s.get(StationAccess, guest_grant).price_per_kwh is None
+    # osobna dozvola bez cijene ne poništava cijenu organizacije
+    with session_scope() as s:
+        s.add(StationAccess(station_id=IDS["st_a"], user_id=IDS["a_emp"]))
+        s.query(StationAccess).filter_by(station_id=IDS["st_a"], organization_id=IDS["a"]).one().price_per_kwh = 0.2
+    assert services.authorize_tag("MTEMP1", "MT-A").price_per_kwh == 0.2
+    with session_scope() as s:
+        s.query(StationAccess).filter_by(station_id=IDS["st_a"], user_id=IDS["a_emp"]).delete()
+        s.query(StationAccess).filter_by(station_id=IDS["st_a"], organization_id=IDS["a"]).one().price_per_kwh = 0.0
+        s.get(StationAccess, guest_grant).price_per_kwh = 0.5

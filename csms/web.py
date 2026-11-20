@@ -491,7 +491,7 @@ async def station_add(request: Request, charge_point_id: str = Form(...), name: 
         org_id = int(organization_id) if organization_id else None
         st = Station(charge_point_id=cp_id, name=name or cp_id, vendor_profile=vendor_profile,
                      security_profile=security_profile, password_hash=hash_password(pw), approved=True,
-                     organization_id=org_id)
+                     organization_id=org_id, price_per_kwh=float(get_setting(s, "price_per_kwh", "0") or 0))
         s.add(st)
         s.flush()
         if org_id:  # organizacija na čijoj je lokaciji punionica odmah dobiva pristup (može se ukloniti)
@@ -526,18 +526,12 @@ async def station_detail(request: Request, sid: int, user: User = Depends(admin_
 @app.post("/stations/{sid}", dependencies=[Depends(check_csrf)])
 async def station_update(request: Request, sid: int, name: str = Form(""), location: str = Form(""),
                          vendor_profile: str = Form("generic"), security_profile: int = Form(...),
-                         price_per_kwh: str = Form(""), approved: str = Form(""), organization_id: str = Form(""),
+                         approved: str = Form(""), organization_id: str = Form(""),
                          user: User = Depends(admin_user)):
-    try:
-        price = parse_price(price_per_kwh)
-    except ValueError:
-        flash(request, "Neispravna cijena.")
-        return RedirectResponse(f"/stations/{sid}", 303)
     with session_scope() as s:
         st = get_or_404(s, Station, sid)
         st.name, st.location, st.vendor_profile = name, location, vendor_profile
         st.security_profile = max(0, min(3, security_profile))
-        st.price_per_kwh = price
         st.approved = bool(approved)
         st.organization_id = int(organization_id) if organization_id else None
         log_event(s, st.charge_point_id, "station_updated", f"by {user.email}")
@@ -546,21 +540,20 @@ async def station_update(request: Request, sid: int, name: str = Form(""), locat
 
 
 @app.post("/orgs/{oid}/access", dependencies=[Depends(check_csrf)])
-async def org_access_add(request: Request, oid: int, station_id: int = Form(...), price_per_kwh: str = Form(""),
+async def org_access_add(request: Request, oid: int, station_id: int = Form(...),
                          user: User = Depends(admin_user)):
-    return await access_add(request, station_id, f"org:{oid}", price_per_kwh, f"/orgs/{oid}", user)
+    return await access_add(request, station_id, f"org:{oid}", f"/orgs/{oid}", user)
 
 
 @app.post("/stations/{sid}/access", dependencies=[Depends(check_csrf)])
-async def access_add(request: Request, sid: int, target: str = Form(...), price_per_kwh: str = Form(""),
+async def access_add(request: Request, sid: int, target: str = Form(...),
                      back: str = Form(""), user: User = Depends(admin_user)):
-    """target = 'org:<id>' ili 'user:<id>'."""
+    """target = 'org:<id>' ili 'user:<id>'. Cijenu dozvole postavlja administrator organizacije punionice."""
     back = safe_next(back) or f"/stations/{sid}"
     try:
         kind, tid = target.split(":")
         tid = int(tid)
         assert kind in ("org", "user")
-        price = parse_price(price_per_kwh)
     except (ValueError, AssertionError):
         flash(request, "Neispravan unos.")
         return RedirectResponse(back, 303)
@@ -569,11 +562,9 @@ async def access_add(request: Request, sid: int, target: str = Form(...), price_
         org_id, user_id = (tid, None) if kind == "org" else (None, tid)
         get_or_404(s, Organization if kind == "org" else User, tid)
         g = s.query(StationAccess).filter_by(station_id=sid, organization_id=org_id, user_id=user_id).first()
-        if g:
-            g.price_per_kwh = price
-        else:
-            s.add(StationAccess(station_id=sid, organization_id=org_id, user_id=user_id, price_per_kwh=price))
-        log_event(s, st.charge_point_id, "access_granted", f"{target} price={price} by {user.email}")
+        if g is None:
+            s.add(StationAccess(station_id=sid, organization_id=org_id, user_id=user_id))
+        log_event(s, st.charge_point_id, "access_granted", f"{target} by {user.email}")
     flash(request, "Dozvola spremljena.")
     return RedirectResponse(back, 303)
 
@@ -852,24 +843,74 @@ async def user_update(request: Request, uid: int, action: str = Form(...), organ
 @app.get("/settings", response_class=HTMLResponse)
 async def settings(request: Request, user: User = Depends(admin_user)):
     with session_scope() as s:
-        price = get_setting(s, "price_per_kwh")
         events = s.query(EventLog).order_by(EventLog.ts.desc()).limit(100).all()
-    return render(request, "settings.html", user, price=price, events=events)
+    return render(request, "settings.html", user, events=events)
 
 
-@app.post("/settings", dependencies=[Depends(check_csrf)])
-async def settings_save(request: Request, price_per_kwh: str = Form(...), user: User = Depends(admin_user)):
-    try:
-        p = float(price_per_kwh.replace(",", "."))
-        assert 0 <= p < 100
-    except Exception:
-        flash(request, "Neispravna cijena.")
-        return RedirectResponse("/settings", 303)
+# ------------------------------------------------------------------ cijene (administrator organizacije)
+
+def _price_scope(s, user: User) -> list[Station]:
+    q = s.query(Station)
+    if not user.is_admin:
+        q = q.filter(Station.organization_id == (user.organization_id or -1))
+    return q.order_by(Station.name, Station.charge_point_id).all()
+
+
+@app.get("/prices", response_class=HTMLResponse)
+async def prices(request: Request, user: User = Depends(manager_user)):
+    """Cijene po punionici i dozvoli. Mijenja ih samo administrator organizacije punionice;
+    administrator platforme ih samo vidi."""
     with session_scope() as s:
-        set_setting(s, "price_per_kwh", str(p))
-        log_event(s, "web", "price_changed", f"{p} by {user.email}")
-    flash(request, "Cijena spremljena (vrijedi za nova punjenja).")
-    return RedirectResponse("/settings", 303)
+        rows = []
+        for st in _price_scope(s, user):
+            grants = s.query(StationAccess).filter_by(station_id=st.id).all()
+            for g in grants:
+                _ = g.organization, g.user
+            rows.append({"st": st, "org": s.get(Organization, st.organization_id) if st.organization_id else None,
+                         "grants": grants, "editable": services.can_set_price(user, st)})
+    return render(request, "prices.html", user, rows=rows)
+
+
+def _price_station(s, user: User, sid: int) -> Station:
+    st = get_or_404(s, Station, sid)
+    if not services.can_set_price(user, st):
+        raise HTTPException(403, "Cijenu postavlja administrator organizacije kod koje je punionica.")
+    return st
+
+
+@app.post("/prices/station/{sid}", dependencies=[Depends(check_csrf)])
+async def price_station_save(request: Request, sid: int, price_per_kwh: str = Form(...),
+                             user: User = Depends(manager_user)):
+    try:
+        price = parse_price(price_per_kwh)
+        assert price is not None
+    except (ValueError, AssertionError):
+        flash(request, "Neispravna cijena.")
+        return RedirectResponse("/prices", 303)
+    with session_scope() as s:
+        st = _price_station(s, user, sid)
+        st.price_per_kwh = price
+        log_event(s, st.charge_point_id, "price_changed", f"station {price} by {user.email}")
+    flash(request, "Cijena spremljena. Vrijedi za nova punjenja.")
+    return RedirectResponse("/prices", 303)
+
+
+@app.post("/prices/access/{aid}", dependencies=[Depends(check_csrf)])
+async def price_access_save(request: Request, aid: int, price_per_kwh: str = Form(""),
+                            user: User = Depends(manager_user)):
+    try:
+        price = parse_price(price_per_kwh)
+    except ValueError:
+        flash(request, "Neispravna cijena.")
+        return RedirectResponse("/prices", 303)
+    with session_scope() as s:
+        g = get_or_404(s, StationAccess, aid)
+        st = _price_station(s, user, g.station_id)
+        g.price_per_kwh = price
+        log_event(s, st.charge_point_id, "price_changed",
+                  f"access org={g.organization_id} user={g.user_id} {price} by {user.email}")
+    flash(request, "Cijena spremljena. Vrijedi za nova punjenja.")
+    return RedirectResponse("/prices", 303)
 
 
 from . import mobile  # noqa: E402,F401  (rute mobilne aplikacije /app)

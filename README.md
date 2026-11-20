@@ -15,7 +15,7 @@ Jednostavan sustav za upravljanje punionicama električnih vozila (CSMS / Centra
 | **Lozinke punionica** | Generiraju se nasumično, spremaju samo kao bcrypt hash, rotacija gumbom (nova lozinka se prvo pošalje punionici, tek onda spremi). |
 | **RFID** | Kartice dodijeljene korisnicima, blokiranje, istek. UID se normalizira (velika slova, bez razmaka/dvotočki) jer različiti čitači šalju različito. Nepoznate kartice se bilježe u događaje. |
 | **Korisnici** | Prijava e-mail + lozinka + MFA (TOTP: Google/Microsoft Authenticator, 1Password…), zaključavanje nakon 5 neuspjelih pokušaja, CSRF zaštita, sigurnosna HTTP zaglavlja. Uloge: administrator i korisnik (korisnik vidi samo svoju potrošnju). |
-| **Potrošnja** | kWh i EUR po punjenju, korisniku i kartici, filter po datumu, CSV izvoz (Excel-friendly). Cijena je globalna ili po punionici i zaključava se na početku punjenja. Uživo snaga i kWh dok punjenje traje. |
+| **Potrošnja** | kWh i EUR po punjenju, korisniku i kartici, filter po datumu, CSV izvoz (Excel-friendly). Cijenu po punionici postavlja administrator organizacije kod koje je punionica, a zaključava se na početku punjenja. Uživo snaga i kWh dok punjenje traje. |
 | **Upravljanje** | Daljinski start/stop, soft/hard reset, otključavanje konektora, odobravanje novih punionica, dnevnik događaja (uklj. `SecurityEventNotification`). |
 
 ### Proizvođači
@@ -38,7 +38,7 @@ Jedna instalacija služi svim mjestima gdje su montirane punionice: tvrtkama, ku
 
 - **Organizacije** (*Organizacije*, samo administrator platforme): tvrtka, kućanstvo, udruga ili javno mjesto. Punionica se veže na organizaciju kod koje je montirana.
 - **Dozvole**: korisnici vide i koriste **samo** punionice za koje im je dana dozvola, bilo cijeloj organizaciji ili pojedinom korisniku (npr. gostu). Kartica bez dozvole se na punionici odbija.
-- **Cijena po dozvoli**: npr. zaposlenici 0 €/kWh, gost 0,45 €/kWh. Redoslijed: osobna dozvola → dozvola organizacije → cijena punionice → zadana cijena.
+- **Cijena po dozvoli**: npr. zaposlenici 0 €/kWh, gost 0,45 €/kWh. Redoslijed: osobna dozvola s cijenom → dozvola organizacije s cijenom → cijena punionice. Sve cijene postavlja samo administrator organizacije punionice (stranica *Cijene*); administrator platforme ih samo vidi.
 - **Uloge**: administrator platforme (sve), administrator organizacije (korisnici i kartice svoje organizacije, potrošnja svojih članova i svih punjenja na punionicama organizacije), korisnik (samo svoje).
 - **Mobilna aplikacija** `/app`: web aplikacija (PWA) koja se instalira s početnog zaslona mobitela, bez App Storea. Korisnik vidi svoje punionice, pokreće i zaustavlja punjenje, prati kWh/€ uživo, veže i blokira svoju RFID karticu. Na stranici punionice je QR kod za ljepljenje na punionicu.
 - **Dodavanje kartice**: korisnik u aplikaciji sam doda karticu prislanjanjem na punionicu (svaki mobitel, svaka kartica), skeniranjem mobitelom (NFC, Chrome na Androidu) ili ručnim upisom.

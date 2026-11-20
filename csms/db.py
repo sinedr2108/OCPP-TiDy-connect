@@ -266,6 +266,17 @@ def _migrate_to_multitenant(s) -> None:
         s.add(StationAccess(station_id=st.id, organization_id=org.id))
 
 
+def _migrate_station_prices(s) -> None:
+    """Cijenu postavlja administrator organizacije po punionici; zadana cijena platforme se više ne
+    uređuje, pa je punionice bez vlastite cijene preuzimaju jednom (obračun se ne mijenja)."""
+    if get_setting(s, "schema_version", "1") != "2":
+        return
+    set_setting(s, "schema_version", "3")
+    default = float(get_setting(s, "price_per_kwh", "0") or 0)
+    for st in s.query(Station).filter(Station.price_per_kwh.is_(None)):
+        st.price_per_kwh = default
+
+
 def init_db() -> None:
     from .security import hash_password
 
@@ -279,3 +290,5 @@ def init_db() -> None:
             set_setting(s, "price_per_kwh", str(config.DEFAULT_PRICE_EUR_PER_KWH))
         s.flush()
         _migrate_to_multitenant(s)
+        s.flush()
+        _migrate_station_prices(s)

@@ -31,6 +31,26 @@ def find_access(s, station_id: int, user: User | None, org_id: int | None) -> St
     return None
 
 
+def grant_price(s, station_id: int, user: User | None, org_id: int | None) -> float | None:
+    """Cijena iz dozvola: osobna dozvola s cijenom, inače dozvola organizacije s cijenom, inače None
+    (tada vrijedi cijena punionice). Sve te cijene postavlja administrator organizacije punionice."""
+    q = s.query(StationAccess).filter_by(station_id=station_id)
+    if user is not None:
+        a = q.filter(StationAccess.user_id == user.id).first()
+        if a and a.price_per_kwh is not None:
+            return a.price_per_kwh
+    if org_id:
+        a = q.filter(StationAccess.organization_id == org_id, StationAccess.user_id.is_(None)).first()
+        if a and a.price_per_kwh is not None:
+            return a.price_per_kwh
+    return None
+
+
+def can_set_price(user: User, station: Station) -> bool:
+    """Cijene punionice smije mijenjati samo administrator organizacije kod koje je punionica montirana."""
+    return bool(user.is_org_admin and station.organization_id and station.organization_id == user.organization_id)
+
+
 def user_can_use(s, station_id: int, user: User) -> bool:
     return user.is_admin or find_access(s, station_id, user, user.organization_id) is not None
 
@@ -152,7 +172,7 @@ def authorize_tag(raw_tag: str, cp_id: str | None = None) -> AuthResult:
                     log_event(s, cp_id, "card_not_allowed", tag)
                     res.status = "NotAtThisLocation"
                     return res
-                res.price_per_kwh = access.price_per_kwh
+                res.price_per_kwh = grant_price(s, st.id, user, org_id)
         return res
 
 

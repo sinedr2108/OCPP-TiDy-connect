@@ -16,7 +16,7 @@
 <label>Montirana kod (organizacija)<select name="organization_id"><option value="">—</option>{% for o in orgs %}<option value="{{ o.id }}" {{ 'selected' if st.organization_id==o.id }}>{{ o.name }}</option>{% endfor %}</select></label>
 <label>Proizvođač<select name="vendor_profile">{% for k,v in VENDORS.items() %}<option value="{{ k }}" {{ 'selected' if st.vendor_profile==k }}>{{ v.label }}</option>{% endfor %}</select></label>
 <label>Sigurnosni profil<select name="security_profile">{% for p,l in [(0,'0 – bez autentifikacije (samo test)'),(1,'1 – Basic Auth'),(2,'2 – TLS + Basic Auth'),(3,'3 – mTLS')] %}<option value="{{ p }}" {{ 'selected' if st.security_profile==p }}>{{ l }}</option>{% endfor %}</select></label>
-<label>Cijena EUR/kWh (prazno = zadana {{ default_price }})<input name="price_per_kwh" value="{{ st.price_per_kwh if st.price_per_kwh is not none else '' }}"></label>
+<p class="muted" style="flex-basis:100%">Cijena: <b>{{ '%.4f'|format(st.price_per_kwh) if st.price_per_kwh is not none else default_price }} €/kWh</b>. Postavlja je administrator organizacije punionice (<a href="/prices">Cijene</a>).</p>
 <label><span><input type="checkbox" name="approved" value="1" {{ 'checked' if st.approved }}> odobrena</span></label><button>Spremi</button></form>
 <form method="post" action="/stations/{{ st.id }}/password" class="row" style="margin-top:12px"><input type="hidden" name="csrf" value="{{ csrf }}">
 <label><span><input type="checkbox" name="push" value="1" {{ 'checked' if online }}> pošalji punionici (preporučeno dok je online)</span></label><button class="sec">Generiraj novu lozinku</button></form></div>
@@ -29,8 +29,8 @@
 <form method="post" action="/stations/{{ st.id }}/access" class="row" style="margin-top:12px"><input type="hidden" name="csrf" value="{{ csrf }}">
 <label>Dozvoli<select name="target" required><optgroup label="Organizacije (svi korisnici)">{% for o in orgs %}<option value="org:{{ o.id }}">{{ o.name }}</option>{% endfor %}</optgroup>
 <optgroup label="Pojedini korisnici (npr. gosti)">{% for u in users %}<option value="user:{{ u.id }}">{{ u.name or u.email }}</option>{% endfor %}</optgroup></select></label>
-<label>Cijena EUR/kWh (prazno = cijena punionice, 0 = besplatno)<input name="price_per_kwh"></label><button>Spremi dozvolu</button></form>
-<p class="muted">Osobna dozvola korisnika ima prednost pred dozvolom njegove organizacije, pa gost može imati drugu cijenu od zaposlenika.</p></div>
+<button>Spremi dozvolu</button></form>
+<p class="muted">Cijene dozvola (npr. drugačiju cijenu za goste) postavlja administrator organizacije punionice na stranici <a href="/prices">Cijene</a>.</p></div>
 <div class="card"><h2>QR kod za aplikaciju</h2><div style="max-width:200px;background:#fff;padding:8px;border-radius:8px">{{ qr|safe }}</div>
 <p class="muted">Isprintaj i zalijepi na punionicu. Korisnik skenira kod mobitelom i pokrene punjenje: <code>{{ app_url }}</code></p></div>
 <div class="card"><h2>Naredbe</h2>
