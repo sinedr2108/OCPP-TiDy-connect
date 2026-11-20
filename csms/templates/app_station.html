@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block title %}{{ v.st.name or v.st.charge_point_id }}{% endblock %}{% block bodyclass %}app{% endblock %}{% block content %}
+<p><a href="/app">← Natrag</a></p>
+<h1>{{ v.st.name or v.st.charge_point_id }} <span class="pill {{ 'ok' if v.online }}">{{ 'online' if v.online else 'offline' }}</span></h1>
+{% if v.st.location %}<p class="muted">{{ v.st.location }}</p>{% endif %}
+{% for t in active %}<div class="card live"><h2>Tvoje punjenje u tijeku</h2><div class="v">{{ '%.2f'|format(t.energy_kwh) }} kWh</div>
+<form method="post" action="/app/stop"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="tx_id" value="{{ t.id }}"><input type="hidden" name="station_id" value="{{ v.st.id }}"><button class="bad big">Zaustavi punjenje</button></form></div>{% endfor %}
+<div class="card"><h2>Punjenje</h2>
+{% for cid, status in v.conns %}<div class="conn"><span>Konektor {{ cid }} · <span class="muted">{{ status }}</span></span>
+<span class="btns"><form method="post" action="/app/start"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="station_id" value="{{ v.st.id }}"><input type="hidden" name="connector_id" value="{{ cid }}"><button {{ 'disabled' if not v.online or status in ('Charging','Faulted','Unavailable') }}>Start</button></form>
+<form method="post" action="/app/stop" data-confirm="Zaustaviti punjenje na konektoru {{ cid }}?"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="station_id" value="{{ v.st.id }}"><input type="hidden" name="connector_id" value="{{ cid }}"><button class="bad" {{ 'disabled' if not v.online }}>Stop</button></form></span></div>{% endfor %}
+<p class="muted">Priključi kabel u vozilo pa pritisni Start. Možeš i prisloniti svoju RFID karticu na punionicu. Stop zaustavlja punjenje, a ako vozilo još nije priključeno, otkazuje Start.</p></div>
+{% endblock %}

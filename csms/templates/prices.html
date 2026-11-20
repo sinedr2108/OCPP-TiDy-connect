@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% block content %}
+<h1>Cijene</h1>
+<p class="muted">Cijene postavlja samo administrator organizacije kod koje je punionica montirana. Cijena se zaključava na početku punjenja, pa promjena vrijedi za nova punjenja.</p>
+<p class="muted">Koja cijena vrijedi: osobna cijena korisnika, ako je zadana; inače cijena za njegovu organizaciju, ako je zadana; inače cijena punionice.</p>
+{% for r in rows %}<div class="card"><h2>{{ r.st.name or r.st.charge_point_id }}{% if r.org %} <span class="pill">{{ r.org.name }}</span>{% endif %}</h2>
+{% if r.editable %}<form method="post" action="/prices/station/{{ r.st.id }}" class="row"><input type="hidden" name="csrf" value="{{ csrf }}">
+<label>Cijena punionice (EUR/kWh, 0 = besplatno)<input name="price_per_kwh" value="{{ r.st.price_per_kwh if r.st.price_per_kwh is not none else '' }}" required inputmode="decimal"></label><button>Spremi</button></form>
+{% else %}<p>Cijena punionice: <b>{{ '%.4f'|format(r.st.price_per_kwh) if r.st.price_per_kwh is not none else 'nije postavljena' }} €/kWh</b></p>{% endif %}
+<table><tr><th>Tko smije puniti</th><th>Cijena EUR/kWh</th></tr>
+{% for g in r.grants %}<tr><td>{% if g.organization %}🏢 {{ g.organization.name }} (svi korisnici){% elif g.user %}👤 {{ g.user.name or g.user.email }}{% endif %}</td>
+<td>{% if r.editable %}<form method="post" action="/prices/access/{{ g.id }}" class="row"><input type="hidden" name="csrf" value="{{ csrf }}"><input name="price_per_kwh" value="{{ g.price_per_kwh if g.price_per_kwh is not none else '' }}" placeholder="kao punionica" inputmode="decimal" style="width:120px"><button class="sec">Spremi</button></form>
+{% else %}{{ '%.4f'|format(g.price_per_kwh) if g.price_per_kwh is not none else 'kao punionica' }}{% endif %}</td></tr>
+{% else %}<tr><td colspan="2" class="muted">Nitko još nema dozvolu.</td></tr>{% endfor %}</table>
+{% if r.editable %}<p class="muted">Prazno polje znači da vrijedi cijena punionice.</p>{% endif %}</div>
+{% else %}<div class="card"><p class="muted">Tvoja organizacija nema montiranih punionica.</p></div>{% endfor %}
+{% endblock %}

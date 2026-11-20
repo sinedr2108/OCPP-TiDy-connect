@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block content %}
-<div class="card login"><h1>⚡ OCPP Charge</h1>
+<div class="card login"><img class="loginlogo" src="/static/apple-touch-icon.png?v={{ ASSET_VERSION }}" alt="TiDy Charge" width="110" height="110"><h1><span class="tid">TiD</span>y Charge</h1>
 <form method="post" action="/login"><input type="hidden" name="csrf" value="{{ csrf }}">
 <input name="email" type="email" placeholder="E-mail" required autofocus autocomplete="username">
 <input name="password" type="password" placeholder="Lozinka" required autocomplete="current-password">

@@ -1,0 +1,15 @@
+<h2 style="margin-top:18px">Dodaj karticu</h2>
+{% if learn_name %}<meta http-equiv="refresh" content="5;url={{ back }}">
+<div class="flash">⏳ Čekam karticu na punionici <b>{{ learn_name }}</b>. Prisloni je na čitač punionice.
+<form class="inline" method="post" action="/app/cards/learn"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="{{ back }}"><button class="sec" name="cancel" value="1">Odustani</button></form></div>{% endif %}
+<p><b>1. Prisloni na punionicu</b> <span class="muted">(najpouzdanije, radi sa svakim mobitelom i svakom karticom)</span></p>
+<form method="post" action="/app/cards/learn" class="row"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="{{ back }}">
+<label>Punionica<select name="station_id" required>{% for v in stations if v.online %}<option value="{{ v.st.id }}">{{ v.st.name or v.st.charge_point_id }}</option>{% endfor %}</select></label>
+<button {{ 'disabled' if not stations|selectattr('online')|list }}>Dodaj prislanjanjem</button></form>
+{% if not stations|selectattr('online')|list %}<p class="muted">Nijedna tvoja punionica trenutno nije spojena.</p>{% endif %}
+<p style="margin-top:14px"><b>2. Skeniraj mobitelom</b> <span class="muted">(NFC)</span></p>
+<button id="nfc-scan" class="sec" type="button">📱 Skeniraj karticu mobitelom</button> <span id="nfc-info" class="muted"></span>
+<p style="margin-top:14px"><b>3. Upiši broj ručno</b></p>
+<form method="post" action="/app/cards" class="row" id="card-form"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="{{ back }}">
+<label>Broj kartice (UID)<input name="uid" required class="mono" placeholder="npr. 04A1B2C3D4"></label><label>Naziv<input name="label" placeholder="npr. Privjesak"></label><button>Veži karticu</button><button class="sec" type="button" id="uid-reverse" title="Neke punionice čitaju broj obrnutim redoslijedom">⇄ Obrni</button></form>
+<p class="muted">Ako kartica dodana skeniranjem ili upisom ne radi na punionici, punionica je čita drugačije: pritisni „Obrni” i dodaj je ponovno ili koristi prislanjanje na punionicu.</p>

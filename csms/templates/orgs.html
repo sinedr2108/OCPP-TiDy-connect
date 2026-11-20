@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block content %}
+<h1>Organizacije</h1>
+<div class="card"><h2>Nova organizacija</h2><form method="post" action="/orgs" class="row"><input type="hidden" name="csrf" value="{{ csrf }}">
+<label>Naziv<input name="name" required placeholder="npr. Firma d.o.o. / Obitelj Horvat"></label>
+<label>Vrsta<select name="kind">{% for k,l in ORG_KINDS.items() %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></label>
+<label>Adresa<input name="address"></label><label>Kontakt<input name="contact" placeholder="ime, telefon, e-mail"></label><button>Dodaj</button></form>
+<p class="muted">Organizacija je tvrtka, kućanstvo, udruga ili javno mjesto. Njeni korisnici vide samo punionice za koje im daš dozvolu.</p></div>
+<div class="card"><table><tr><th>Naziv</th><th>Vrsta</th><th class="n">Korisnici</th><th class="n">Montirane punionice</th><th class="n">Dozvole</th><th class="n">kWh ovaj mjesec</th><th>Status</th></tr>
+{% for o in rows %}<tr><td><a href="/orgs/{{ o.id }}">{{ o.name }}</a></td><td>{{ o.kind_label }}</td><td class="n">{{ members.get(o.id, 0) }}</td><td class="n">{{ owned.get(o.id, 0) }}</td><td class="n">{{ granted.get(o.id, 0) }}</td>
+<td class="n">{{ '%.2f'|format((month.get(o.id) or 0)/1000) }}</td><td>{% if o.active %}<span class="pill ok">aktivna</span>{% else %}<span class="pill off">neaktivna</span>{% endif %}</td></tr>
+{% else %}<tr><td colspan="7" class="muted">Nema organizacija.</td></tr>{% endfor %}</table></div>
+{% endblock %}

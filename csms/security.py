@@ -35,9 +35,14 @@ def verify_password(pw: str, hashed: str | None) -> bool:
         return False
 
 
+# Bez znakova koji se lako zamijene pri ručnom upisu (0/O, 1/l/I).
+_PW_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
+
+
 def generate_station_password() -> str:
-    """OCPP AuthorizationKey: 16-40 znakova. Generiramo 32 hex znaka (radi kod svih proizvođača)."""
-    return secrets.token_hex(16).upper()
+    """OCPP AuthorizationKey: spec traži 16-40 znakova, a Schneider eConfigure dopušta najviše 20.
+    Generiramo točno 20 alfanumeričkih ASCII znakova (~117 bita), što prihvaćaju svi proizvođači."""
+    return "".join(secrets.choice(_PW_ALPHABET) for _ in range(20))
 
 
 def parse_basic_auth(header: str | None) -> tuple[str, str] | None:
@@ -77,7 +82,7 @@ def new_totp_secret() -> str:
 
 
 def totp_uri(secret: str, email: str) -> str:
-    return pyotp.TOTP(secret).provisioning_uri(name=email, issuer_name="OCPP Charge")
+    return pyotp.TOTP(secret).provisioning_uri(name=email, issuer_name="TiDy Charge")
 
 
 def verify_totp(secret: str | None, code: str) -> bool:
