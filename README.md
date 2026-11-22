@@ -1,4 +1,4 @@
-# ⚡ OCPP Charge
+# ⚡ TiDy Charge
 
 Jednostavan sustav za upravljanje punionicama električnih vozila (CSMS / Central System).
 
@@ -15,7 +15,7 @@ Jednostavan sustav za upravljanje punionicama električnih vozila (CSMS / Centra
 | **Lozinke punionica** | Generiraju se nasumično, spremaju samo kao bcrypt hash, rotacija gumbom (nova lozinka se prvo pošalje punionici, tek onda spremi). |
 | **RFID** | Kartice dodijeljene korisnicima, blokiranje, istek. UID se normalizira (velika slova, bez razmaka/dvotočki) jer različiti čitači šalju različito. Nepoznate kartice se bilježe u događaje. |
 | **Korisnici** | Prijava e-mail + lozinka + MFA (TOTP: Google/Microsoft Authenticator, 1Password…), zaključavanje nakon 5 neuspjelih pokušaja, CSRF zaštita, sigurnosna HTTP zaglavlja. Uloge: administrator i korisnik (korisnik vidi samo svoju potrošnju). |
-| **Potrošnja** | kWh i EUR po punjenju, korisniku i kartici, filter po datumu, CSV izvoz (Excel-friendly). Cijena je globalna ili po punionici i zaključava se na početku punjenja. Uživo snaga i kWh dok punjenje traje. |
+| **Potrošnja** | kWh i EUR po punjenju, korisniku i kartici, filter po datumu, CSV izvoz (Excel-friendly). Cijenu po punionici postavlja administrator organizacije kod koje je punionica, a zaključava se na početku punjenja. Uživo snaga i kWh dok punjenje traje. |
 | **Upravljanje** | Daljinski start/stop, soft/hard reset, otključavanje konektora, odobravanje novih punionica, dnevnik događaja (uklj. `SecurityEventNotification`). |
 
 ### Proizvođači
@@ -32,7 +32,24 @@ Svi navedeni proizvođači koriste standardni OCPP, pa sustav radi s njima bez p
 
 > ⚠️ Kompatibilnost je testirana simulatorom prema OCPP specifikaciji, **ne na stvarnim uređajima**. Prije produkcije spoji po jedan uređaj svakog proizvođača i provjeri: spajanje, autorizaciju karticom, start/stop i mjerenja. Ako neki uređaj odstupa, to se rješava u `csms/vendors.py`.
 
+## Više organizacija i mobilna aplikacija
+
+Jedna instalacija služi svim mjestima gdje su montirane punionice: tvrtkama, kućanstvima, udrugama i javnim mjestima.
+
+- **Organizacije** (*Organizacije*, samo administrator platforme): tvrtka, kućanstvo, udruga ili javno mjesto. Punionica se veže na organizaciju kod koje je montirana.
+- **Dozvole**: korisnici vide i koriste **samo** punionice za koje im je dana dozvola, bilo cijeloj organizaciji ili pojedinom korisniku (npr. gostu). Kartica bez dozvole se na punionici odbija.
+- **Cijena po dozvoli**: npr. zaposlenici 0 €/kWh, gost 0,45 €/kWh. Redoslijed: osobna dozvola s cijenom → dozvola organizacije s cijenom → cijena punionice. Sve cijene postavlja samo administrator organizacije punionice (stranica *Cijene*); administrator platforme ih samo vidi.
+- **Uloge**: administrator platforme (sve), administrator organizacije (korisnici i kartice svoje organizacije, potrošnja svojih članova i svih punjenja na punionicama organizacije), korisnik (samo svoje).
+- **Mobilna aplikacija** `/app`: web aplikacija (PWA) koja se instalira s početnog zaslona mobitela, bez App Storea. Korisnik vidi svoje punionice, pokreće i zaustavlja punjenje, prati kWh/€ uživo, veže i blokira svoju RFID karticu. Na stranici punionice je QR kod za ljepljenje na punionicu.
+- **Dodavanje kartice**: korisnik u aplikaciji sam doda karticu prislanjanjem na punionicu (svaki mobitel, svaka kartica), skeniranjem mobitelom (NFC, Chrome na Androidu) ili ručnim upisom.
+- **Mjesečni PDF obračun**: *Izvještaji → Preuzmi PDF* (po organizaciji, korisniku ili za sve), na stranici organizacije i u aplikaciji („moj obračun”). Sadrži zbroj po korisniku, po punionici i popis svih punjenja s cijenom. Mjesec se računa po lokalnom vremenu.
+- **Obavijesti**: korisnik dobije obavijest kad vozilo prestane puniti (oslobodi mjesto) i kad punjenje završi, s kWh i €. Na mobitel (Web Push; u aplikaciji *Uključi obavijesti*, na iPhoneu aplikacija mora biti dodana na početni zaslon) i/ili e-mailom ako su u `.env` zadane `CSMS_SMTP_*` postavke.
+- **Vrijeme** se prikazuje po zoni `CSMS_TIMEZONE` (zadano Europe/Zagreb); baza i dalje sprema UTC.
+- **Nadogradnja postojeće instalacije**: novi stupci se dodaju automatski; postojeći korisnici i punionice prebacuju se u organizaciju *Postojeći korisnici* s dozvolom za sve postojeće punionice, pa sve radi kao prije.
+
 ## Pokretanje
+
+☁️ **Windows Server + Cloudflare Tunnel (bez Dockera): [docs/CLOUDFLARE-WINDOWS.md](docs/CLOUDFLARE-WINDOWS.md)**
 
 📘 **Detaljne upute korak po korak (server, HTTPS, prva proba, spajanje punionica, backup): [docs/INSTALACIJA.md](docs/INSTALACIJA.md)**
 

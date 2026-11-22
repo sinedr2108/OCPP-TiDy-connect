@@ -45,7 +45,7 @@ def _cn_from_subject(subject: str) -> str | None:
 
 
 def _peer_cn(connection, request=None) -> str | None:
-    if config.TRUST_PROXY_TLS and request is not None:
+    if config.TRUST_PROXY_TLS and config.TRUST_PROXY_CLIENT_CERT and request is not None:
         subj = request.headers.get("X-Client-Cert-Subject", "")
         return _cn_from_subject(subj) if subj else None
     sslobj = connection.transport.get_extra_info("ssl_object")

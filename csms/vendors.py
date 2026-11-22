@@ -23,10 +23,12 @@ VENDOR_PROFILES: dict[str, dict] = {
         "post_boot_config_16": {"MeterValueSampleInterval": "60"},
     },
     "schneider": {
-        "label": "Schneider Electric (EVlink Pro AC/DC, EVlink Smart Wallbox)",
+        "label": "Schneider Electric (Charge PRO, EVlink Pro AC/DC, EVlink Smart Wallbox)",
         "ocpp": ["1.6J", "2.0.1"],
-        "notes": "Konfiguracija kroz eSetup aplikaciju. EVlink Pro podržava sigurnosne profile 1-3 "
-                 "i SignCertificate (instalacija CA certifikata prije prelaska na wss).",
+        "notes": "Konfiguracija kroz eConfigure/eSetup → Supervision. Remote Supervision URL upiši BEZ ID-a "
+                 "na kraju (npr. wss://<server>/ocpp), jer punionica sama dodaje 'Charging Station Box "
+                 "identifier' – njega postavi na Charge Point ID iz ovog sustava. Basic Authentication: "
+                 "ASCII, lozinka najviše 20 znakova. Podržava sigurnosne profile 1-3.",
         "post_boot_config_16": {"MeterValueSampleInterval": "60",
                                 "MeterValuesSampledData": "Energy.Active.Import.Register,Power.Active.Import"},
     },

@@ -1,0 +1,35 @@
+{% extends "base.html" %}{% block title %}Punjenje{% endblock %}{% block bodyclass %}app{% endblock %}{% block content %}
+{% if active %}<meta http-equiv="refresh" content="20">{% endif %}
+<h1>Bok{% if user.name %}, {{ user.name }}{% endif %}{% if org %} <span class="muted" style="font-size:14px">· {{ org }}</span>{% endif %}</h1>
+
+{% for t in active %}<div class="card live"><h2>⚡ Punjenje u tijeku · {{ t.station.name or t.station.charge_point_id }}</h2>
+<div class="v">{{ '%.2f'|format(t.energy_kwh) }} kWh</div>
+<p class="muted">{{ '%.2f'|format(t.cost_eur) }} € · {% if t.power_w %}{{ '%.1f'|format(t.power_w/1000) }} kW · {% endif %}od {{ t.started_at|dt('%H:%M') }} · konektor {{ t.connector_id }}</p>
+<form method="post" action="/app/stop" data-confirm="Zaustaviti punjenje?"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="tx_id" value="{{ t.id }}"><button class="bad big">Zaustavi punjenje</button></form></div>{% endfor %}
+
+<div class="grid"><div class="card stat"><div class="l">Ovaj mjesec</div><div class="v">{{ '%.1f'|format(month.kwh) }} kWh</div><div class="l">{{ '%.2f'|format(month.eur) }} € · {{ month.count }} punjenja</div></div></div>
+
+<div class="card"><h2>Moje punionice</h2>
+{% for v in stations %}<div class="conn"><div><a href="/app/station/{{ v.st.id }}"><b>{{ v.st.name or v.st.charge_point_id }}</b></a><br><span class="muted">{{ v.st.location }}</span></div>
+<div>{% if not v.online %}<span class="pill">offline</span>{% else %}{% for cid, status in v.conns %}<span class="pill {{ 'ok' if status == 'Available' }}">{{ cid }}: {{ {'Available':'slobodna','Charging':'puni','Preparing':'priprema','Occupied':'zauzeta','SuspendedEV':'pauza (vozilo)','SuspendedEVSE':'pauza','Finishing':'završava','Faulted':'kvar','Unavailable':'nedostupna','Reserved':'rezervirana'}.get(status, '?') }}</span> {% endfor %}{% endif %}</div></div>
+{% else %}<p class="muted">Još nemaš dozvolu ni za jednu punionicu. Javi se administratoru.</p>{% endfor %}</div>
+
+<div class="card" id="kartice"><h2>Moje RFID kartice</h2>
+{% for c in cards %}<div class="conn"><span class="mono">{{ c.uid }}{% if c.label %} · {{ c.label }}{% endif %}</span>
+{% if c.active %}<form method="post" action="/app/cards/{{ c.id }}/block" data-confirm="Blokirati karticu {{ c.uid }}? Ponovno je može aktivirati samo administrator."><input type="hidden" name="csrf" value="{{ csrf }}"><button class="sec">Izgubljena? Blokiraj</button></form>{% else %}<span class="pill off">blokirana</span>{% endif %}</div>
+{% else %}<p class="muted">Nemaš vezanih kartica. Punjenje možeš pokrenuti i iz aplikacije.</p>{% endfor %}
+{% with back="/app#kartice" %}{% include "_addcard.html" %}{% endwith %}</div>
+
+<div class="card" id="obavijesti"><h2>Obavijesti</h2>
+<p class="muted">Javimo ti kad vozilo prestane puniti i kad punjenje završi.</p>
+<button id="push-enable" class="sec" data-csrf="{{ csrf }}">🔔 Uključi obavijesti na ovom uređaju</button> <span class="muted">{{ push_count }} uređaj(a) prijavljeno</span>
+<p id="push-info" class="muted"></p>
+<form method="post" action="/app/notifications" class="row"><input type="hidden" name="csrf" value="{{ csrf }}">
+<label><span><input type="checkbox" name="notify_push" value="1" {{ 'checked' if user.notify_push }}> na mobitel</span></label>
+<label><span><input type="checkbox" name="notify_email" value="1" {{ 'checked' if user.notify_email }}> e-mailom ({{ user.email }})</span></label>
+<button class="sec">Spremi</button><button class="sec" name="test" value="1">Pošalji probnu</button></form></div>
+
+<div class="card"><h2>Zadnja punjenja</h2>{% for t in recent %}<div class="conn"><span>{{ t.started_at|dt('%d.%m. %H:%M') }} · {{ t.station.name or t.station.charge_point_id }}</span><span><b>{{ '%.2f'|format(t.energy_kwh) }} kWh</b> · {{ '%.2f'|format(t.cost_eur) }} €</span></div>{% else %}<p class="muted">Još nema punjenja.</p>{% endfor %}
+<p><a href="/sessions">Sva punjenja i CSV →</a> · Obračun PDF: <a href="/reports/pdf?month={{ this_month }}">ovaj mjesec</a>, <a href="/reports/pdf?month={{ prev_month }}">prošli mjesec</a></p></div>
+<p class="muted">Savjet: u pregledniku odaberi „Dodaj na početni zaslon” i aplikacija će se otvarati kao obična aplikacija.</p>
+{% endblock %}
