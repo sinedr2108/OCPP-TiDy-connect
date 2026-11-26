@@ -743,11 +743,12 @@ def _card_owner_ok(s, user: User, user_id: int | None) -> bool:
 
 @app.post("/cards", dependencies=[Depends(check_csrf)])
 async def card_add(request: Request, uid: str = Form(...), label: str = Form(""), user_id: str = Form(""),
-                   user: User = Depends(manager_user)):
+                   back: str = Form(""), user: User = Depends(manager_user)):
+    back = safe_next(back) or "/cards"
     tag = normalize_id_tag(uid)
     if not tag or len(tag) > 36:
         flash(request, "Neispravan UID kartice.")
-        return RedirectResponse("/cards", 303)
+        return RedirectResponse(back, 303)
     uid_int = int(user_id) if user_id else None
     with session_scope() as s:
         if not _card_owner_ok(s, user, uid_int):
@@ -760,12 +761,12 @@ async def card_add(request: Request, uid: str = Form(...), label: str = Form("")
             s.add(RfidCard(uid=tag, label=label, user_id=uid_int, organization_id=org_id))
             log_event(s, "web", "card_added", f"{tag} by {user.email}")
             flash(request, f"Kartica {tag} dodana.")
-    return RedirectResponse("/cards", 303)
+    return RedirectResponse(back, 303)
 
 
 @app.post("/cards/{cid}", dependencies=[Depends(check_csrf)])
 async def card_update(request: Request, cid: int, action: str = Form(...), user_id: str = Form(""),
-                      user: User = Depends(manager_user)):
+                      label: str = Form(""), back: str = Form(""), user: User = Depends(manager_user)):
     with session_scope() as s:
         c = cards_in_scope(s, user).filter(RfidCard.id == cid).one_or_none()
         if c is None:
@@ -780,8 +781,10 @@ async def card_update(request: Request, cid: int, action: str = Form(...), user_
             owner = s.get(User, uid_int) if uid_int else None
             if owner and owner.organization_id:
                 c.organization_id = owner.organization_id
+        elif action == "label":
+            c.label = label.strip()[:200]
         log_event(s, "web", f"card_{action}", f"{c.uid} by {user.email}")
-    return RedirectResponse("/cards", 303)
+    return RedirectResponse(safe_next(back) or "/cards", 303)
 
 
 # ----------------------------------------------------------------- korisnici, postavke, događaji
@@ -820,7 +823,7 @@ async def user_add(request: Request, email: str = Form(...), name: str = Form(""
 
 @app.post("/users/{uid}", dependencies=[Depends(check_csrf)])
 async def user_update(request: Request, uid: int, action: str = Form(...), organization_id: str = Form(""),
-                      org_role: str = Form("member"), user: User = Depends(manager_user)):
+                      org_role: str = Form("member"), back: str = Form(""), user: User = Depends(manager_user)):
     with session_scope() as s:
         u = users_in_scope(s, user).filter(User.id == uid).one_or_none()
         if u is None or (u.is_admin and not user.is_admin):
@@ -837,7 +840,104 @@ async def user_update(request: Request, uid: int, action: str = Form(...), organ
             if u.id != user.id:
                 u.org_role = "admin" if org_role == "admin" and u.organization_id else "member"
         log_event(s, "web", f"user_{action}", f"{u.email} by {user.email}")
-    return RedirectResponse("/users", 303)
+    return RedirectResponse(safe_next(back) or "/users", 303)
+
+
+def _editable_user(s, user: User, uid: int) -> User:
+    """Korisnik kojeg smije uređivati: admin platforme sve, admin organizacije samo svoje (ne admine platforme)."""
+    u = users_in_scope(s, user).filter(User.id == uid).one_or_none()
+    if u is None or (u.is_admin and not user.is_admin):
+        raise HTTPException(404)
+    return u
+
+
+@app.get("/users/{uid}", response_class=HTMLResponse)
+async def user_edit(request: Request, uid: int, user: User = Depends(manager_user)):
+    with session_scope() as s:
+        u = _editable_user(s, user, uid)
+        cards = s.query(RfidCard).filter(RfidCard.user_id == u.id, RfidCard.app_token.is_(False)) \
+            .order_by(RfidCard.uid).all()
+        free_cards = cards_in_scope(s, user).filter(RfidCard.user_id.is_(None), RfidCard.app_token.is_(False)) \
+            .order_by(RfidCard.uid).all()
+        orgs = s.query(Organization).order_by(Organization.name).all() if user.is_admin else []
+        totals = tx_totals(tx_query(s, user, user_id=u.id))
+    return render(request, "user_edit.html", user, u=u, cards=cards, free_cards=free_cards, orgs=orgs,
+                  totals=totals)
+
+
+@app.post("/users/{uid}/edit", dependencies=[Depends(check_csrf)])
+async def user_edit_save(request: Request, uid: int, email: str = Form(...), name: str = Form(""),
+                         organization_id: str = Form(""), org_role: str = Form("member"),
+                         is_admin: str = Form(""), active: str = Form(""), notify_email: str = Form(""),
+                         notify_push: str = Form(""), user: User = Depends(manager_user)):
+    back = f"/users/{uid}"
+    email = email.strip().lower()
+    if "@" not in email or len(email) > 200:
+        flash(request, "Neispravan e-mail.")
+        return RedirectResponse(back, 303)
+    with session_scope() as s:
+        u = _editable_user(s, user, uid)
+        if s.query(User).filter(User.email == email, User.id != u.id).first():
+            flash(request, "Korisnik s tim e-mailom već postoji.")
+            return RedirectResponse(back, 303)
+        u.email, u.name = email, name.strip()[:200]
+        u.notify_email, u.notify_push = bool(notify_email), bool(notify_push)
+        if u.id != user.id:  # sebe ne može deaktivirati ni sebi oduzeti ovlasti
+            u.active = bool(active)
+            if user.is_admin:
+                u.is_admin = bool(is_admin)
+        if user.is_admin:
+            new_org = int(organization_id) if organization_id else None
+            if new_org is not None and s.get(Organization, new_org) is None:
+                raise HTTPException(400)
+            if new_org != u.organization_id:
+                u.organization_id = new_org
+                # kartice prate korisnika u novu organizaciju
+                for c in s.query(RfidCard).filter(RfidCard.user_id == u.id):
+                    c.organization_id = new_org
+        if u.id != user.id:
+            u.org_role = "admin" if org_role == "admin" and u.organization_id else "member"
+        elif not u.organization_id:
+            u.org_role = "member"
+        log_event(s, "web", "user_edited", f"{u.email} by {user.email}")
+        flash(request, "Podaci korisnika spremljeni.")
+    return RedirectResponse(back, 303)
+
+
+@app.post("/users/{uid}/cards", dependencies=[Depends(check_csrf)])
+async def user_card_assign(request: Request, uid: int, card_id: int = Form(...), user: User = Depends(manager_user)):
+    """Dodjela postojeće kartice (bez korisnika) ovom korisniku."""
+    with session_scope() as s:
+        u = _editable_user(s, user, uid)
+        c = cards_in_scope(s, user).filter(RfidCard.id == card_id, RfidCard.user_id.is_(None)).one_or_none()
+        if c is None:
+            raise HTTPException(404)
+        c.user_id = u.id
+        if u.organization_id:
+            c.organization_id = u.organization_id
+        log_event(s, "web", "card_assign", f"{c.uid} -> {u.email} by {user.email}")
+        flash(request, f"Kartica {c.uid} dodijeljena.")
+    return RedirectResponse(f"/users/{uid}", 303)
+
+
+@app.post("/users/{uid}/password", dependencies=[Depends(check_csrf)])
+async def user_set_password(request: Request, uid: int, password: str = Form(""), generate: str = Form(""),
+                            user: User = Depends(manager_user)):
+    back = f"/users/{uid}"
+    pw = generate_station_password() if generate else password
+    if len(pw) < 10:
+        flash(request, "Lozinka mora imati barem 10 znakova.")
+        return RedirectResponse(back, 303)
+    with session_scope() as s:
+        u = _editable_user(s, user, uid)
+        u.password_hash = hash_password(pw)
+        u.failed_logins, u.locked_until = 0, None
+        log_event(s, "web", "user_password_set", f"{u.email} by {user.email}")
+        if generate:
+            flash(request, f"Nova lozinka za {u.email}: {pw} (prikazuje se samo sada, proslijedi je korisniku).")
+        else:
+            flash(request, f"Lozinka za {u.email} je promijenjena.")
+    return RedirectResponse(back, 303)
 
 
 @app.get("/settings", response_class=HTMLResponse)

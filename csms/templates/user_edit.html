@@ -1,0 +1,41 @@
+{% extends "base.html" %}{% block content %}
+<p><a href="/users">← Korisnici</a></p>
+<h1>{{ u.name or u.email }}{% if u.is_admin %} <span class="pill ok">administrator platforme</span>{% elif u.org_role == 'admin' %} <span class="pill ok">administrator organizacije</span>{% endif %}{% if not u.active %} <span class="pill off">neaktivan</span>{% endif %}</h1>
+<div class="grid"><div class="card stat"><div class="l">Ukupno punjenja</div><div class="v">{{ '%.2f'|format(totals.kwh) }} kWh</div><div class="l">{{ '%.2f'|format(totals.eur) }} € · {{ totals.count }} punjenja · <a href="/sessions?user_id={{ u.id }}">popis</a></div></div></div>
+
+<div class="card"><h2>Podaci</h2><form method="post" action="/users/{{ u.id }}/edit" class="row"><input type="hidden" name="csrf" value="{{ csrf }}">
+<label>Ime<input name="name" value="{{ u.name }}"></label>
+<label>E-mail (prijava)<input type="email" name="email" value="{{ u.email }}" required></label>
+{% if user.is_admin %}<label>Organizacija<select name="organization_id"><option value="">— bez organizacije (gost) —</option>{% for o in orgs %}<option value="{{ o.id }}" {{ 'selected' if u.organization_id==o.id }}>{{ o.name }}</option>{% endfor %}</select></label>{% endif %}
+{% if u.id != user.id %}<label>Uloga u organizaciji<select name="org_role"><option value="member">korisnik</option><option value="admin" {{ 'selected' if u.org_role=='admin' }}>administrator organizacije</option></select></label>
+{% if user.is_admin %}<label><span><input type="checkbox" name="is_admin" value="1" {{ 'checked' if u.is_admin }}> administrator platforme</span></label>{% endif %}
+<label><span><input type="checkbox" name="active" value="1" {{ 'checked' if u.active }}> aktivan (neaktivan se ne može prijaviti, kartice mu se odbijaju)</span></label>{% else %}<input type="hidden" name="org_role" value="{{ u.org_role }}">{% endif %}
+<label><span><input type="checkbox" name="notify_email" value="1" {{ 'checked' if u.notify_email }}> obavijesti e-mailom</span></label>
+<label><span><input type="checkbox" name="notify_push" value="1" {{ 'checked' if u.notify_push }}> obavijesti na mobitel</span></label>
+<button>Spremi</button></form>
+{% if u.id == user.id %}<p class="muted">Vlastitu ulogu i status ne možeš mijenjati. Svoju lozinku mijenjaš u <a href="/account">Moj račun</a>.</p>{% endif %}</div>
+
+<div class="card"><h2>Lozinka</h2><form method="post" action="/users/{{ u.id }}/password" class="row"><input type="hidden" name="csrf" value="{{ csrf }}">
+<label>Nova lozinka (min. 10)<input type="password" name="password" minlength="10" autocomplete="new-password" required></label><button>Postavi lozinku</button></form>
+<form method="post" action="/users/{{ u.id }}/password" class="row" style="margin-top:8px"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="generate" value="1"><button class="sec">Generiraj novu lozinku</button></form>
+<p class="muted">Postavljanjem lozinke račun se i otključava. Stara lozinka više ne vrijedi.</p></div>
+
+<div class="card"><h2>Sigurnost</h2>
+<p>MFA: {% if u.mfa_enabled %}<span class="pill ok">uključen</span>{% else %}<span class="pill">isključen</span>{% endif %}
+· Prijava: {% if u.locked_until %}<span class="pill off">zaključan</span>{% else %}<span class="pill ok">otključan</span>{% endif %}</p>
+{% for a,l in [('reset_mfa','Resetiraj MFA'),('unlock','Otključaj')] %}<form class="inline" method="post" action="/users/{{ u.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="{{ a }}"><input type="hidden" name="back" value="/users/{{ u.id }}"><button class="sec">{{ l }}</button></form> {% endfor %}</div>
+
+<div class="card"><h2>RFID kartice</h2><table><tr><th>Broj kartice</th><th>Naziv</th><th>Status</th><th></th></tr>
+{% for c in cards %}<tr><td class="mono">{{ c.uid }}</td>
+<td><form class="inline row" method="post" action="/cards/{{ c.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="label"><input type="hidden" name="back" value="/users/{{ u.id }}"><input name="label" value="{{ c.label }}"><button class="sec">Spremi</button></form></td>
+<td>{% if c.active %}<span class="pill ok">aktivna</span>{% else %}<span class="pill off">blokirana</span>{% endif %}</td>
+<td><form class="inline" method="post" action="/cards/{{ c.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="toggle"><input type="hidden" name="back" value="/users/{{ u.id }}"><button class="sec">{{ 'Blokiraj' if c.active else 'Aktiviraj' }}</button></form>
+<form class="inline" method="post" action="/cards/{{ c.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="assign"><input type="hidden" name="user_id" value=""><input type="hidden" name="back" value="/users/{{ u.id }}"><button class="sec">Odvoji od korisnika</button></form>
+<a href="/sessions?card_id={{ c.id }}">punjenja</a></td></tr>
+{% else %}<tr><td colspan="4" class="muted">Korisnik nema kartica.</td></tr>{% endfor %}</table>
+<form method="post" action="/cards" class="row" style="margin-top:12px"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="user_id" value="{{ u.id }}"><input type="hidden" name="back" value="/users/{{ u.id }}">
+<label>Nova kartica, UID (hex)<input name="uid" required class="mono"></label><label>Naziv<input name="label"></label><button>Dodaj karticu</button></form>
+{% if free_cards %}<form method="post" action="/users/{{ u.id }}/cards" class="row" style="margin-top:8px"><input type="hidden" name="csrf" value="{{ csrf }}">
+<label>Postojeća kartica bez korisnika<select name="card_id">{% for c in free_cards %}<option value="{{ c.id }}">{{ c.uid }}{% if c.label %} · {{ c.label }}{% endif %}</option>{% endfor %}</select></label><button class="sec">Dodijeli</button></form>{% endif %}
+</div>
+{% endblock %}
