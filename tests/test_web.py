@@ -27,7 +27,7 @@ def setup_module():
         b = User(email="u2@test.hr", name="U2", password_hash=hash_password("lozinka12345"))
         st = Station(charge_point_id="WEB-1", approved=True)
         s.add_all([a, b, st]); s.flush()
-        c = RfidCard(uid="AAAA", user_id=a.id); s.add(c); s.flush()
+        c = RfidCard(uid="AAAA", label="Kartica (prislonjena)", user_id=a.id); s.add(c); s.flush()
         s.add(Transaction(ocpp_tx_id="x1", station_id=st.id, user_id=a.id, card_id=c.id, id_tag="AAAA",
                           energy_wh=10000, cost_eur=3.5, active=False))
 
@@ -49,6 +49,8 @@ def test_user_sees_only_own_sessions():
     login(c1, "u1@test.hr", "lozinka12345"); login(c2, "u2@test.hr", "lozinka12345")
     assert "10.00 kWh" in c1.get("/sessions").text
     assert "0.00 kWh" in c2.get("/sessions").text
+    # stupac Kartica uvijek prikazuje broj kartice (naziv samo iza njega)
+    assert re.search(r'<td class="mono">AAAA <span class="muted">· Kartica \(prislonjena\)</span></td>', c1.get("/sessions").text)
     assert c2.get("/stations").status_code == 403
 
 
